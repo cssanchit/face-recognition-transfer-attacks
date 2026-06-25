@@ -16,3 +16,4 @@ Available attack folders:
 - `li_boost_mi`
 - `ops`
 - `sia_mi_ti`
+- `dpa_hma_ensemble`

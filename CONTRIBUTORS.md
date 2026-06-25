@@ -1,22 +1,22 @@
-# Contributors
+# Contributors and Attribution
 
-This file lists the contributor associated with each public attack adaptation currently included in the repository.
+This repository separates **original paper authorship** from **repository implementation / adaptation contribution**.
 
-## Baseline pipeline
+The original authors listed below are the researchers who proposed the method in the literature. The contributors listed in the implementation column are the people who adapted or integrated a version of that method into this CNN-based face-verification repository.
 
-| Component | Contributor | College | GitHub | Note |
-|---|---|---|---|---|
-| Vanilla baseline CNN face-verification setup | Vishaka | Delhi University | not recorded here | includes PGD, MI_FGSM, TI_FGSM, SI_NI_FGSM, MI_ADMIX_DI_TI support in the shared pipeline |
-
-## Student-contributed attack adaptations
-
-| Attack | Contributor | College | GitHub | Status |
-|---|---|---|---|---|
-| BPA_CNN | Om Singh Rawat | IIT Delhi | `Om-Singh-Rawat` | verified in internal pipeline |
-| BSR | Chirag Sharma | IIIT Vadodara | `chiraagsharma24` | verified in internal pipeline |
-| DECOWA | Om Singh Rawat | IIT Delhi | `Om-Singh-Rawat` | verified in internal pipeline |
-| SIA_MI_TI | Janhavi Kishor | SRM University | `Janhavi187` | verified in internal pipeline |
-| OPS | Kkartik Aggarwal | Delhi Technological University (DTU) | not recorded here | integrated, internal verification pending |
-| ATT_CNN | Keshav Raj | IIIT Delhi | `keshayraj220507` | verified in internal pipeline |
-| LI_BOOST_MI | Charushi | IGDTUW | `Charushi06` | verified in internal pipeline |
-| DPA_HMA | Kushal Khemka | Delhi Technological University (DTU) | `KushalKhemka` | verified in internal pipeline |
+| Attack | Original paper / source | Original authors | Repository implementation / adaptation |
+|---|---|---|---|
+| `PGD` | *Towards Deep Learning Models Resistant to Adversarial Attacks* (2018) | Aleksander Madry, Aleksandar Makelov, Ludwig Schmidt, Dimitris Tsipras, Adrian Vladu | Shared repository implementation integrated by **Vishaka** from **Delhi University** |
+| `MI_FGSM` | *Boosting Adversarial Attacks with Momentum* (CVPR 2018) | Yinpeng Dong, Fangzhou Liao, Tianyu Pang, Hang Su, Jun Zhu, Xiaolin Hu, Jianguo Li | Shared repository implementation integrated by **Vishaka** from **Delhi University** |
+| `TI_FGSM` | *Evading Defenses to Transferable Adversarial Examples by Translation-Invariant Attacks* (CVPR 2019) | Yinpeng Dong, Tianyu Pang, Hang Su, Jun Zhu | Shared repository implementation integrated by **Vishaka** from **Delhi University** |
+| `SI_NI_FGSM` | *Nesterov Accelerated Gradient and Scale Invariance for Adversarial Attacks* (2020) | Jiadong Lin, Chuanbai Xiao, Lei Yang, Xiaoyuan Mao, Tian Xia, Tong He, Wei Yang | Shared repository implementation integrated by **Vishaka** from **Delhi University** |
+| `MI_ADMIX_DI_TI` | *Admix: Enhancing the Transferability of Adversarial Attacks* (ICCV 2021), combined with DI and TI style transfer components | Xiaosen Wang, Jiefeng Chen, Si'wei Lyu, Yisen Wang | Shared repository implementation integrated by **Vishaka** from **Delhi University** |
+| `BPA_CNN` | *Rethinking the Backward Propagation for Adversarial Transferability* (NeurIPS 2023) | Xiaosen Wang, Kangheng Tong, Kun He | CNN-side face-verification adaptation contributed by **Om Singh Rawat** from **IIT Delhi** |
+| `BSR` | *Boosting Adversarial Transferability by Block Shuffle and Rotation* (CVPR 2024) | Kunyu Wang, Xuanran He, Wenxuan Wang, Xiaosen Wang | Face-verification adaptation contributed by **Chirag Sharma** from **IIIT Vadodara** |
+| `DECOWA` | *Boosting Adversarial Transferability across Model Genus by Deformation-Constrained Warping* (AAAI 2024) | Jiayi Lin, Chuanbai Xiao, Chao Ma, Jie Zhang, Qiong Cao, Xiaosen Wang | Face-verification adaptation contributed by **Om Singh Rawat** from **IIT Delhi** |
+| `SIA_MI_TI` | *Structure Invariant Transformation for better Adversarial Transferability* (ICCV 2023) | Xiaosen Wang, Zeliang Zhang, Jianping Zhang | CNN face-verification adaptation contributed by **Janhavi Kishor** from **SRM University** |
+| `OPS` | *Boosting Adversarial Transferability through Augmentation in Hypothesis Space* (CVPR 2025) | Yu Guo, Weiquan Liu, Qingshan Xu, Shijun Zheng, Shujun Huang, Yu Zang, Siqi Shen, Chenglu Wen, Cheng Wang | Face-verification adaptation contributed by **Kkartik Aggarwal** from **Delhi Technological University (DTU)** |
+| `ATT_CNN` | *Boosting the Transferability of Adversarial Attack on Vision Transformer with Adaptive Token Tuning* (NeurIPS 2024) | Di Ming, Peng Ren, Yunlong Wang, Xin Feng | CNN-side adaptation inspired by the original ATT method, contributed by **Keshav Raj** from **IIIT Delhi** |
+| `LI_BOOST_MI` | Student-submitted MI-style logarithmic-shift boosting adaptation basis | No single canonical upstream paper reference was finalized in the submission materials | CNN face-verification adaptation contributed by **Charushi** from **IGDTUW** |
+| `DPA_HMA` | *Improving the Transferability of Adversarial Attacks on Face Recognition with Diverse Parameters Augmentation* (CVPR 2025) | Fengfan Zhou, Bangjie Yin, Hefei Ling, Qianyu Zhou, Wenxuan Wang | Face-recognition adaptation contributed by **Kushal Khemka** from **Delhi Technological University (DTU)** |
+| `DPA_HMA_ENSEMBLE` | Extension built on the DPA-based face-recognition adaptation in this repository | Based on the DPA source above | Ensemble extension integrated in this repository on top of the shared DPA_HMA adaptation |

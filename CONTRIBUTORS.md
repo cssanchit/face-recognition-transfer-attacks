@@ -2,6 +2,14 @@
 
 This file lists the contributor associated with each public attack adaptation currently included in the repository.
 
+## Baseline pipeline
+
+| Component | Contributor | College | GitHub | Note |
+|---|---|---|---|---|
+| Vanilla baseline CNN face-verification setup | Vishaka | Delhi University | not recorded here | includes PGD, MI_FGSM, TI_FGSM, SI_NI_FGSM, MI_ADMIX_DI_TI support in the shared pipeline |
+
+## Student-contributed attack adaptations
+
 | Attack | Contributor | College | GitHub | Status |
 |---|---|---|---|---|
 | BPA_CNN | Om Singh Rawat | IIT Delhi | `Om-Singh-Rawat` | verified in internal pipeline |

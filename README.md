@@ -20,21 +20,29 @@ Some attacks in this repository were originally proposed for **generic image cla
 - `docs/usage.md`: how to run the code
 - `CONTRIBUTORS.md`: attack-wise contributor list
 
-## Implemented attacks
-- `PGD`
-- `MI_FGSM`
-- `TI_FGSM`
-- `SI_NI_FGSM`
-- `MI_ADMIX_DI_TI`
-- `BPA_CNN`
-- `BSR`
-- `DECOWA`
-- `SIA_MI_TI`
-- `OPS`
-- `ATT_CNN`
-- `LI_BOOST_MI`
-- `DPA_HMA`
-- `DPA_HMA_ENSEMBLE`
+## Baseline attacks
+- `PGD`, `MI_FGSM`, `TI_FGSM`, `SI_NI_FGSM`, `MI_ADMIX_DI_TI`
+- Baseline CNN face-verification pipeline prepared by **Vishaka** from **Delhi University**
+
+## Implemented attack adaptations
+- `BPA_CNN`:
+  *Rethinking the Backward Propagation for Adversarial Transferability* (NeurIPS 2023), implemented by **Om Singh Rawat** from **IIT Delhi**
+- `BSR`:
+  *Boosting Adversarial Transferability by Block Shuffle and Rotation* (CVPR 2024), implemented by **Chirag Sharma** from **IIIT Vadodara**
+- `DECOWA`:
+  *Boosting Adversarial Transferability across Model Genus by Deformation-Constrained Warping* (AAAI 2024), implemented by **Om Singh Rawat** from **IIT Delhi**
+- `SIA_MI_TI`:
+  *Structure Invariant Transformation for better Adversarial Transferability* (ICCV 2023), implemented by **Janhavi Kishor** from **SRM University**
+- `OPS`:
+  *Boosting Adversarial Transferability through Augmentation in Hypothesis Space* (CVPR 2025), implemented by **Kkartik Aggarwal** from **Delhi Technological University (DTU)**
+- `ATT_CNN`:
+  *Boosting the Transferability of Adversarial Attack on Vision Transformer with Adaptive Token Tuning* (NeurIPS 2024), implemented as a CNN-side adaptation by **Keshav Raj** from **IIIT Delhi**
+- `LI_BOOST_MI`:
+  student-contributed MI-style logarithmic-shift boosting adaptation for CNN face verification, implemented by **Charushi** from **IGDTUW**
+- `DPA_HMA`:
+  *Improving the Transferability of Adversarial Attacks on Face Recognition with Diverse Parameters Augmentation* (CVPR 2025), implemented by **Kushal Khemka** from **Delhi Technological University (DTU)**
+- `DPA_HMA_ENSEMBLE`:
+  ensemble extension of the DPA-based CNN face-recognition adaptation in this repository
 
 ## Quick start
 Install dependencies:

@@ -1,0 +1,8 @@
+numpy
+pandas
+Pillow
+tensorflow
+keras
+deepface
+torch
+torchvision

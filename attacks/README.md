@@ -14,6 +14,7 @@ Available attack folders:
 - `decowa`
 - `dpa_hma`
 - `li_boost_mi`
+- `gra`
 - `ops`
 - `sia_mi_ti`
 - `dpa_hma_ensemble`

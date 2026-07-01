@@ -33,6 +33,7 @@ ALL_ATTACKS = [
     'OPS',
     'ATT_CNN',
     'LI_BOOST_MI',
+    'GRA',
     'DPA_HMA',
     'DPA_HMA_ENSEMBLE',
 ]
@@ -50,6 +51,7 @@ ATTACK_COLS = {
     'OPS': 'ops_path',
     'ATT_CNN': 'att_cnn_path',
     'LI_BOOST_MI': 'li_boost_mi_path',
+    'GRA': 'gra_path',
     'DPA_HMA': 'dpa_hma_path',
     'DPA_HMA_ENSEMBLE': 'dpa_hma_ensemble_path',
 }
@@ -67,6 +69,9 @@ OPS_NUM_OPERATOR = 10
 OPS_SAMPLE_LEVELS = (2, 3, 4)
 LIBOOST_K = 6
 LIBOOST_N = 30
+GRA_NUM_NEIGHBOR = 20
+GRA_BETA = 3.5
+GRA_SIGN_DECAY = 0.94
 DPA_HMA_SEED = int(os.environ.get('TRANSFER_ATTACK_DPA_HMA_SEED', '1'))
 DPA_HMA_NUM_ITER = int(os.environ.get('TRANSFER_ATTACK_DPA_HMA_NUM_ITER', str(NUM_ITER)))
 DPA_HMA_ENSEMBLE_NUM_ITER = int(os.environ.get('TRANSFER_ATTACK_DPA_HMA_ENSEMBLE_NUM_ITER', str(DPA_HMA_NUM_ITER)))
@@ -993,6 +998,68 @@ def _dpa_hma_optimize(model, x, tgt_emb, attack_type, num_copies: int, num_iter:
 # DPA_HMA by Kushal Khemka (DTU Delhi)
 # Paper basis: Diverse Parameters Augmentation (DPA) from Improving the
 # Transferability of Adversarial Attacks on Face Recognition (CVPR 2025)
+
+# GRA by Krish Bansal (Delhi Technological University)
+# Based on "Boosting Adversarial Transferability via Gradient Relevance Attack"
+# (ICCV 2023) by Yingwen Wu, Yinpeng Dong, Qin Wang, Jun Zhu, Xiaolin Hu.
+def gra_attack(model, x, tgt_emb, attack_type):
+    adv = tf.identity(x)
+    g = tf.zeros_like(x)
+    m = tf.ones_like(x) * (10.0 / 9.4)
+    alpha = EPSILON / NUM_ITER
+    tgt_emb = tf.nn.l2_normalize(tgt_emb, axis=1)
+    neighbor_bound = EPSILON * GRA_BETA
+
+    for _ in range(NUM_ITER):
+        with tf.GradientTape() as tape:
+            tape.watch(adv)
+            emb = compute_embedding(model, adv)
+            cos = tf.reduce_sum(emb * tgt_emb, axis=1)
+            loss = attack_loss(cos, attack_type)
+        current_grad = tape.gradient(loss, adv)
+
+        neighbor_grad_sum = tf.zeros_like(x)
+        for _ in range(GRA_NUM_NEIGHBOR):
+            noise = tf.random.uniform(
+                tf.shape(adv), minval=-neighbor_bound, maxval=neighbor_bound
+            )
+            x_neighbor = adv + noise
+            with tf.GradientTape() as tape_n:
+                tape_n.watch(x_neighbor)
+                emb_n = compute_embedding(model, x_neighbor)
+                cos_n = tf.reduce_sum(emb_n * tgt_emb, axis=1)
+                loss_n = attack_loss(cos_n, attack_type)
+            neighbor_grad_sum += tape_n.gradient(loss_n, x_neighbor)
+        avg_neighbor_grad = neighbor_grad_sum / float(GRA_NUM_NEIGHBOR)
+
+        flat_cur = tf.reshape(current_grad, [1, -1])
+        flat_sam = tf.reshape(avg_neighbor_grad, [1, -1])
+        cos_sim_val = (
+            tf.reduce_sum(flat_cur * flat_sam, axis=1)
+            / (tf.sqrt(tf.reduce_sum(flat_cur ** 2, axis=1))
+               * tf.sqrt(tf.reduce_sum(flat_sam ** 2, axis=1)) + 1e-12)
+        )
+        cos_sim_val = tf.reshape(cos_sim_val, [1, 1, 1, 1])
+        corrected_grad = (
+            cos_sim_val * current_grad
+            + (1.0 - cos_sim_val) * avg_neighbor_grad
+        )
+
+        prev_g = g
+        corrected_grad = corrected_grad / (tf.reduce_mean(tf.abs(corrected_grad)) + 1e-8)
+        g = DECAY * g + corrected_grad
+
+        sign_match = tf.cast(tf.equal(tf.sign(prev_g), tf.sign(g)), dtype=tf.float32)
+        sign_flip = tf.ones_like(x) - sign_match
+        m = m * (sign_match + sign_flip * GRA_SIGN_DECAY)
+
+        adv = adv + alpha * m * tf.sign(g)
+        adv = tf.clip_by_value(adv, x - EPSILON, x + EPSILON)
+        adv = tf.clip_by_value(adv, -1.0, 1.0)
+
+    return adv
+
+
 def dpa_hma(model, x, tgt_emb, attack_type, num_copies: int = 8, num_iter: int = DPA_HMA_NUM_ITER):
     _ensure_dpa_hma_seed()
     tgt_emb = tf.nn.l2_normalize(tgt_emb, axis=1)
@@ -1087,6 +1154,8 @@ def run_attack(attack_name: str, model, src, tgt, attack_type: str, input_size):
         return att_cnn_attack(model, src, tgt_emb, attack_type)
     if attack_name == 'LI_BOOST_MI':
         return li_boost_mi(model, src, tgt_emb, attack_type)
+    if attack_name == 'GRA':
+        return gra_attack(model, src, tgt_emb, attack_type)
     if attack_name == 'DPA_HMA':
         return dpa_hma(model, src, tgt_emb, attack_type)
     if attack_name == 'DPA_HMA_ENSEMBLE':

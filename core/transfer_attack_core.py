@@ -35,7 +35,9 @@ ALL_ATTACKS = [
     'LI_BOOST_MI',
     'GRA',
     'IDAA',
+    'DYNAMIC_MORPH',
     'DPA_HMA',
+    'DYNAMIC_MORPH',
 ]
 
 ATTACK_COLS = {
@@ -53,7 +55,9 @@ ATTACK_COLS = {
     'LI_BOOST_MI': 'li_boost_mi_path',
     'GRA': 'gra_path',
     'IDAA': 'idaa_path',
+    'DYNAMIC_MORPH': 'dynamic_morph_path',
     'DPA_HMA': 'dpa_hma_path',
+    'DYNAMIC_MORPH': 'dynamic_morph_path',
 }
 
 EPSILON = 0.062
@@ -1102,6 +1106,59 @@ def dpa_hma(model, x, tgt_emb, attack_type, num_copies: int = 8, num_iter: int =
 
 
 
+def dynamic_morph_mi_fgsm(model, src, tgt, attack_type, input_size):
+    """Assignment 4: D-FMA (Pre-aligned Semantic Mixing)"""
+    h, w = input_size
+    mask = np.zeros((h, w, 3), dtype=np.float32)
+    
+    mask[int(h*0.35):int(h*0.52), int(w*0.20):int(w*0.45), :] = 1.0  
+    mask[int(h*0.35):int(h*0.52), int(w*0.55):int(w*0.80), :] = 1.0  
+    mask[int(h*0.48):int(h*0.70), int(w*0.38):int(w*0.62), :] = 1.0  
+    
+    mask = cv2.GaussianBlur(mask, (25, 25), 0)
+    tf_mask = tf.convert_to_tensor(mask, dtype=tf.float32)
+    
+    morphed_tensor = (tgt * tf_mask) + (src * (1.0 - tf_mask))
+    
+    adv = tf.identity(morphed_tensor)
+    g = tf.zeros_like(adv)
+    alpha = EPSILON / NUM_ITER
+    tgt_emb = tf.nn.l2_normalize(compute_embedding(model, tgt), axis=1)
+    
+    for _ in range(NUM_ITER):
+        with tf.GradientTape() as tape:
+            tape.watch(adv)
+            emb = compute_embedding(model, adv)
+            cos = tf.reduce_sum(emb * tgt_emb, axis=1)
+            loss = attack_loss(cos, attack_type)
+            
+        grad = tape.gradient(loss, adv)
+        grad = grad / (tf.reduce_mean(tf.abs(grad)) + 1e-8)
+        g = DECAY * g + grad
+        adv = adv + alpha * tf.sign(g)
+        adv = tf.clip_by_value(adv, morphed_tensor - EPSILON, morphed_tensor + EPSILON)
+        adv = tf.clip_by_value(adv, -1.0, 1.0)
+        
+    # --- EVALUATION HOOK FOR DYNAMIC MORPH ONLY ---
+    try:
+        for victim_name in ['Facenet512', 'ArcFace', 'GhostFaceNet', 'VGG-Face']:
+            v_size = ATTACKER_MODELS[victim_name]
+            v_model = build_attacker(victim_name)
+            v_adv = tf.image.resize(adv, v_size)
+            v_tgt = tf.image.resize(tgt, v_size)
+            emb_adv = compute_embedding(v_model, v_adv)
+            emb_tgt = compute_embedding(v_model, v_tgt)
+            sim = float(tf.reduce_sum(emb_adv * emb_tgt, axis=1).numpy()[0])
+            _EVAL_RECORDS.append({
+                'victim': victim_name,
+                'attack_type': attack_type,
+                'similarity': sim
+            })
+    except Exception:
+        pass
+        
+    return adv
+
 def build_attacker(model_name: str):
     return DeepFace.build_model(model_name).model
 
@@ -1139,4 +1196,6 @@ def run_attack(attack_name: str, model, src, tgt, attack_type: str, input_size):
         return idaa(model, src, tgt_emb, attack_type, input_size)
     if attack_name == 'DPA_HMA':
         return dpa_hma(model, src, tgt_emb, attack_type)
+    if attack_name == 'DYNAMIC_MORPH':
+        return dynamic_morph_mi_fgsm(model, src, tgt, attack_type, input_size)
     raise ValueError(f'Unsupported attack: {attack_name}')

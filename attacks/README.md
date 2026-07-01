@@ -16,5 +16,6 @@ Available attack folders:
 - `li_boost_mi`
 - `gra`
 - `idaa`
+- `dynamic_morph`
 - `ops`
 - `sia_mi_ti`

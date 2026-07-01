@@ -34,6 +34,7 @@ ALL_ATTACKS = [
     'ATT_CNN',
     'LI_BOOST_MI',
     'GRA',
+    'IDAA',
     'DPA_HMA',
     'DPA_HMA_ENSEMBLE',
 ]
@@ -52,6 +53,7 @@ ATTACK_COLS = {
     'ATT_CNN': 'att_cnn_path',
     'LI_BOOST_MI': 'li_boost_mi_path',
     'GRA': 'gra_path',
+    'IDAA': 'idaa_path',
     'DPA_HMA': 'dpa_hma_path',
     'DPA_HMA_ENSEMBLE': 'dpa_hma_ensemble_path',
 }
@@ -185,6 +187,51 @@ def input_diversity(x, input_size, prob=0.7):
     x_padded = tf.pad(x_resized, [[0, 0], [pad_top, pad_bottom], [pad_left, pad_right], [0, 0]])
     return tf.image.resize(x_padded, input_size)
 
+
+def _idaa_transform(x, input_size):
+    out = input_diversity(x, input_size)
+
+    if tf.random.uniform([]) < 0.5:
+        out = tf.image.flip_left_right(out)
+
+    scale = tf.random.uniform([], 0.9, 1.1)
+
+    h = tf.shape(out)[1]
+    w = tf.shape(out)[2]
+
+    nh = tf.cast(tf.cast(h, tf.float32) * scale, tf.int32)
+    nw = tf.cast(tf.cast(w, tf.float32) * scale, tf.int32)
+
+    out = tf.image.resize(out, (nh, nw))
+    out = tf.image.resize(out, (h, w))
+
+    return out
+
+
+def _idaa_local_mix(batch, alpha=0.4):
+    shuffled = tf.random.shuffle(batch)
+    lam = tf.random.uniform([], 0.3, 0.7)
+
+    h = tf.shape(batch)[1]
+    w = tf.shape(batch)[2]
+
+    cut_h = h // 2
+    cut_w = w // 2
+
+    mixed = tf.identity(batch)
+
+    patch = shuffled[:, :cut_h, :cut_w, :]
+
+    upper = tf.concat(
+        [patch, batch[:, :cut_h, cut_w:, :]],
+        axis=2
+    )
+
+    lower = batch[:, cut_h:, :, :]
+
+    mixed = tf.concat([upper, lower], axis=1)
+
+    return lam * mixed + (1.0 - lam) * batch
 
 def pgd_attack(model, x, tgt_emb, attack_type, random_start=True):
     if random_start:
@@ -1123,6 +1170,112 @@ def dpa_hma_ensemble(
     return tf.identity(adv)
 
 
+def idaa(model,x,tgt_emb,attack_type,input_size,num_scale=5):
+
+    adv = tf.Variable(tf.identity(x),
+                      trainable=True,
+                      dtype=tf.float32)
+
+    alpha = EPSILON / NUM_ITER
+
+    beta1 = 0.99
+    beta2 = 0.999
+
+    m = tf.zeros_like(x)
+    v = tf.zeros_like(x)
+
+    tgt_emb = tf.nn.l2_normalize(tgt_emb, axis=1)
+
+    for t in range(NUM_ITER):
+
+        with tf.GradientTape() as tape:
+
+            copies = []
+
+            for _ in range(num_scale):
+                copies.append(
+                    _idaa_transform(
+                        adv,
+                        input_size
+                    )
+                )
+
+            batch = tf.concat(copies, axis=0)
+
+            batch = _idaa_local_mix(batch)
+
+            tgt_rep = tf.repeat(
+                tgt_emb,
+                num_scale,
+                axis=0
+            )
+
+            emb = compute_embedding(
+                model,
+                batch
+            )
+
+            cos = tf.reduce_sum(
+                emb * tgt_rep,
+                axis=1
+            )
+
+            loss = attack_loss(
+                cos,
+                attack_type
+            )
+
+        grad = tape.gradient(
+            loss,
+            adv
+        )
+
+        grad = grad / (
+            tf.reduce_mean(
+                tf.abs(grad)
+            ) + 1e-8
+        )
+
+        m = beta1 * m + (1.0 - beta1) * grad
+
+        v = beta2 * v + (
+            1.0 - beta2
+        ) * tf.square(grad)
+
+        m_hat = m / (
+            1.0 - beta1 ** (t + 1)
+        )
+
+        v_hat = v / (
+            1.0 - beta2 ** (t + 1)
+        )
+
+        update = m_hat / (
+            tf.sqrt(v_hat) + 1e-8
+        )
+
+        adv.assign(
+            adv + alpha * tf.sign(update)
+        )
+
+        adv.assign(
+            tf.clip_by_value(
+                adv,
+                x - EPSILON,
+                x + EPSILON
+            )
+        )
+
+        adv.assign(
+            tf.clip_by_value(
+                adv,
+                -1.0,
+                1.0
+            )
+        )
+
+    return tf.identity(adv)
+
 def build_attacker(model_name: str):
     return DeepFace.build_model(model_name).model
 
@@ -1156,6 +1309,8 @@ def run_attack(attack_name: str, model, src, tgt, attack_type: str, input_size):
         return li_boost_mi(model, src, tgt_emb, attack_type)
     if attack_name == 'GRA':
         return gra_attack(model, src, tgt_emb, attack_type)
+    if attack_name == 'IDAA':
+        return idaa(model, src, tgt_emb, attack_type, input_size)
     if attack_name == 'DPA_HMA':
         return dpa_hma(model, src, tgt_emb, attack_type)
     if attack_name == 'DPA_HMA_ENSEMBLE':

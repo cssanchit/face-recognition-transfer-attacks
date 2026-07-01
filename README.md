@@ -41,6 +41,7 @@ To avoid ambiguity, this repository distinguishes between:
 | `ATT_CNN` | *Boosting the Transferability of Adversarial Attack on Vision Transformer with Adaptive Token Tuning* (NeurIPS 2024) | Di Ming, Peng Ren, Yunlong Wang, Xin Feng | CNN-side adaptation inspired by the original ATT method, contributed by **Keshav Raj** from **IIIT Delhi** |
 | `LI_BOOST_MI` | *Boosting the Local Invariance for Better Adversarial Transferability* (arXiv 2025) | Bohan Liu, Xiaosen Wang | CNN face-verification adaptation contributed by **Charushi** from **IGDTUW** |
 | `GRA` | *Boosting Adversarial Transferability via Gradient Relevance Attack* (ICCV 2023) | Yingwen Wu, Yinpeng Dong, Qin Wang, Jun Zhu, Xiaolin Hu | CNN face-verification adaptation contributed by **Krish Bansal** from **Delhi Technological University (DTU)** |
+| `IDAA` | Student-submitted IDAA basis for CNN face verification | Not independently standardized in the submitted materials | CNN face-verification adaptation contributed by **Arnav Asthana** from **IIIT Delhi** |
 | `DPA_HMA` | *Improving the Transferability of Adversarial Attacks on Face Recognition with Diverse Parameters Augmentation* (CVPR 2025) | Fengfan Zhou, Bangjie Yin, Hefei Ling, Qianyu Zhou, Wenxuan Wang | Face-recognition adaptation contributed by **Kushal Khemka** from **Delhi Technological University (DTU)** |
 | `DPA_HMA_ENSEMBLE` | Repository-side ensemble extension built on the DPA_HMA adaptation | Based on the DPA source above | Shared repository ensemble extension for the CNN face-verification pipeline |
 

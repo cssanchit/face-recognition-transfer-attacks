@@ -16,6 +16,10 @@ The generation script expects a CSV with at least the following columns:
 - `impersonation_attack`
 - `dodging_attack`
 
+Meaning of `attack_type` in the input CSV:
+- `impersonation_attack`: `img1` and `img2` should belong to different identities. The goal is to make the source image (`img1`) match the target identity (`img2`).
+- `dodging_attack`: `img1` and `img2` should belong to the same identity. The goal is to make a genuine pair fail verification.
+
 ## 3. Example command
 ```bash
 python experiments/generate_adversarial_examples.py \

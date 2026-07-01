@@ -18,4 +18,3 @@ Available attack folders:
 - `idaa`
 - `ops`
 - `sia_mi_ti`
-- `dpa_hma_ensemble`

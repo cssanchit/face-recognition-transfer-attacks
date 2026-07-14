@@ -26,6 +26,7 @@ ALL_ATTACKS = [
     'TI_FGSM',
     'SI_NI_FGSM',
     'MI_ADMIX_DI_TI',
+    'PGN',
     'BPA_CNN',
     'BSR',
     'DECOWA',
@@ -46,6 +47,7 @@ ATTACK_COLS = {
     'TI_FGSM': 'ti_fgsm_path',
     'SI_NI_FGSM': 'si_ni_fgsm_path',
     'MI_ADMIX_DI_TI': 'mi_admix_di_ti_path',
+    'PGN': 'pgn_path',
     'BPA_CNN': 'bpa_cnn_path',
     'BSR': 'bsr_path',
     'DECOWA': 'decowa_path',
@@ -76,6 +78,9 @@ LIBOOST_N = 30
 GRA_NUM_NEIGHBOR = 20
 GRA_BETA = 3.5
 GRA_SIGN_DECAY = 0.94
+PGN_BETA = 3.0
+PGN_GAMMA = 0.5
+PGN_NUM_NEIGHBOR = 20
 DPA_HMA_SEED = int(os.environ.get('TRANSFER_ATTACK_DPA_HMA_SEED', '1'))
 DPA_HMA_NUM_ITER = int(os.environ.get('TRANSFER_ATTACK_DPA_HMA_NUM_ITER', str(NUM_ITER)))
 DPA_HMA_CANONICAL_SIZE = (224, 224)
@@ -1183,6 +1188,50 @@ def gra_attack(model, x, tgt_emb, attack_type):
     return adv
 
 
+def pgn_attack(model, x, tgt_emb, attack_type):
+    alpha = EPSILON / NUM_ITER
+    zeta = PGN_BETA * EPSILON
+
+    adv = tf.identity(x)
+    g = tf.zeros_like(x)
+    tgt_emb = tf.nn.l2_normalize(tgt_emb, axis=1)
+
+    for _ in range(NUM_ITER):
+        averaged_gradient = tf.zeros_like(x)
+        for _ in range(PGN_NUM_NEIGHBOR):
+            noise = tf.random.uniform(tf.shape(x), minval=-zeta, maxval=zeta, dtype=x.dtype)
+            x_near = tf.clip_by_value(adv + noise, -1.0, 1.0)
+
+            with tf.GradientTape() as tape1:
+                tape1.watch(x_near)
+                emb1 = compute_embedding(model, x_near)
+                cos1 = tf.reduce_sum(emb1 * tgt_emb, axis=1)
+                loss1 = attack_loss(cos1, attack_type)
+            g_1 = tape1.gradient(loss1, x_near)
+
+            norm_g1 = tf.reduce_mean(tf.abs(g_1), axis=[1, 2, 3], keepdims=True) + 1e-8
+            x_next = tf.clip_by_value(x_near + alpha * (-g_1 / norm_g1), -1.0, 1.0)
+
+            with tf.GradientTape() as tape2:
+                tape2.watch(x_next)
+                emb2 = compute_embedding(model, x_next)
+                cos2 = tf.reduce_sum(emb2 * tgt_emb, axis=1)
+                loss2 = attack_loss(cos2, attack_type)
+            g_2 = tape2.gradient(loss2, x_next)
+
+            averaged_gradient += (1.0 - PGN_GAMMA) * g_1 + PGN_GAMMA * g_2
+
+        averaged_gradient = averaged_gradient / float(PGN_NUM_NEIGHBOR)
+        norm_avg_grad = tf.reduce_mean(tf.abs(averaged_gradient)) + 1e-8
+        g = DECAY * g + (averaged_gradient / norm_avg_grad)
+
+        adv = adv + alpha * tf.sign(g)
+        adv = tf.clip_by_value(adv, x - EPSILON, x + EPSILON)
+        adv = tf.clip_by_value(adv, -1.0, 1.0)
+
+    return adv
+
+
 def dpa_hma(model, x, tgt_emb, attack_type, num_copies: int = 8, num_iter: int = DPA_HMA_NUM_ITER):
     _ensure_dpa_hma_seed()
     tgt_emb = tf.nn.l2_normalize(tgt_emb, axis=1)
@@ -1279,6 +1328,8 @@ def run_attack(attack_name: str, model, src, tgt, attack_type: str, input_size):
         return li_boost_mi(model, src, tgt_emb, attack_type)
     if attack_name == 'GRA':
         return gra_attack(model, src, tgt_emb, attack_type)
+    if attack_name == 'PGN':
+        return pgn_attack(model, src, tgt_emb, attack_type)
     if attack_name == 'IDAA':
         return idaa(model, src, tgt_emb, attack_type, input_size)
     if attack_name == 'DPA_HMA':

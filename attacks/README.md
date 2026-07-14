@@ -18,5 +18,6 @@ Available attack folders:
 - `idaa`
 - `dynamic_morph`
 - `ops`
+- `pgn`
 - `sia`
 - `sia_mi_ti`

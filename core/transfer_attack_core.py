@@ -26,6 +26,7 @@ ALL_ATTACKS = [
     'TI_FGSM',
     'SI_NI_FGSM',
     'MI_ADMIX_DI_TI',
+    'ADAMSI_FGM',
     'PGN',
     'BPA_CNN',
     'BSR',
@@ -47,6 +48,7 @@ ATTACK_COLS = {
     'TI_FGSM': 'ti_fgsm_path',
     'SI_NI_FGSM': 'si_ni_fgsm_path',
     'MI_ADMIX_DI_TI': 'mi_admix_di_ti_path',
+    'ADAMSI_FGM': 'adamsi_fgm_path',
     'PGN': 'pgn_path',
     'BPA_CNN': 'bpa_cnn_path',
     'BSR': 'bsr_path',
@@ -265,6 +267,37 @@ def mi_fgsm(model, x, tgt_emb, attack_type):
         grad = grad / (tf.reduce_mean(tf.abs(grad)) + 1e-8)
         g = DECAY * g + grad
         adv = adv + alpha * tf.sign(g)
+        adv = tf.clip_by_value(adv, x - EPSILON, x + EPSILON)
+        adv = tf.clip_by_value(adv, -1.0, 1.0)
+    return adv
+
+
+# ADAMSI_FGM by Bhumika Singh (SRM Institute of Science and Technology)
+# Paper basis: On the Convergence of an Adaptive Momentum Method for
+# Adversarial Attacks (AAAI 2024)
+def adamsi_fgm(model, x, tgt_emb, attack_type, beta1=0.9, eps_adapt=1e-8):
+    adv = tf.identity(x)
+    m = tf.zeros_like(x)
+    v = tf.zeros_like(x)
+    tgt_emb = tf.nn.l2_normalize(tgt_emb, axis=1)
+    alpha0 = EPSILON / NUM_ITER
+
+    for t in range(1, NUM_ITER + 1):
+        with tf.GradientTape() as tape:
+            tape.watch(adv)
+            emb = compute_embedding(model, adv)
+            cos = tf.reduce_sum(emb * tgt_emb, axis=1)
+            loss = attack_loss(cos, attack_type)
+        grad = tape.gradient(loss, adv)
+        grad_norm = grad / (tf.reduce_mean(tf.abs(grad)) + 1e-8)
+
+        beta1_t = beta1 / tf.sqrt(tf.cast(t, tf.float32))
+        m = beta1_t * m + (1.0 - beta1_t) * grad_norm
+
+        v = v + tf.square(grad_norm)
+        adapt_step = m / (tf.sqrt(v) + eps_adapt)
+
+        adv = adv + alpha0 * NUM_ITER * adapt_step
         adv = tf.clip_by_value(adv, x - EPSILON, x + EPSILON)
         adv = tf.clip_by_value(adv, -1.0, 1.0)
     return adv
@@ -1310,6 +1343,8 @@ def run_attack(attack_name: str, model, src, tgt, attack_type: str, input_size):
     if attack_name == 'MI_ADMIX_DI_TI':
         pool_imgs = tf.concat([src, tgt, src], axis=0)
         return mi_admix_di_ti(model, src, tgt_emb, attack_type, pool_imgs, input_size)
+    if attack_name == 'ADAMSI_FGM':
+        return adamsi_fgm(model, src, tgt_emb, attack_type)
     if attack_name == 'BPA_CNN':
         return bpa_cnn(model, src, tgt_emb, attack_type)
     if attack_name == 'BSR':

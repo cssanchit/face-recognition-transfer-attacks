@@ -8,6 +8,7 @@ Each subfolder contains:
 - and the student presentation PDF when available.
 
 Available attack folders:
+- `adamsi_fgm`
 - `att_cnn`
 - `bpa_cnn`
 - `bsr`

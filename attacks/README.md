@@ -23,3 +23,4 @@ Available attack folders:
 - `pgn`
 - `sia`
 - `sia_mi_ti`
+- `att_cnn_patch`

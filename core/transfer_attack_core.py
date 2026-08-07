@@ -36,6 +36,7 @@ ALL_ATTACKS = [
     'SIA',
     'OPS',
     'ATT_CNN',
+    'ATT_CNN_PATCH',
     'LI_BOOST_MI',
     'GRA',
     'IDAA',
@@ -59,6 +60,7 @@ ATTACK_COLS = {
     'SIA': 'sia_path',
     'OPS': 'ops_path',
     'ATT_CNN': 'att_cnn_path',
+    'ATT_CNN_PATCH': 'att_cnn_patch_path',
     'LI_BOOST_MI': 'li_boost_mi_path',
     'GRA': 'gra_path',
     'IDAA': 'idaa_path',
@@ -368,6 +370,50 @@ def att_cnn_attack(model, x, tgt_emb, attack_type):
         grad = grad / (tf.reduce_mean(tf.abs(grad)) + 1e-8)
         g = DECAY * g + grad
         adv = adv + alpha * tf.sign(g)
+        adv = tf.clip_by_value(adv, x - EPSILON, x + EPSILON)
+        adv = tf.clip_by_value(adv, -1.0, 1.0)
+
+    return adv
+
+
+# Student-contributed attack integration:
+# ATT_CNN_PATCH by Pratyush Kumar (KCC Institute of Technology and Management, A.K.T.U.)
+# This is a separate CNN-side ATT-inspired variant using gradient-variance
+# modulation and stochastic patch masking in the face-verification pipeline.
+def att_cnn_patch_attack(model, x, tgt_emb, attack_type):
+    adv = tf.identity(x)
+    momentum = tf.zeros_like(x)
+    alpha = EPSILON / NUM_ITER
+    tgt_emb = tf.nn.l2_normalize(tgt_emb, axis=1)
+    prev_var = None
+
+    for _ in range(NUM_ITER):
+        with tf.GradientTape() as tape:
+            tape.watch(adv)
+            emb = compute_embedding(model, adv)
+            cos = tf.reduce_sum(emb * tgt_emb, axis=1)
+            loss = attack_loss(cos, attack_type)
+
+        grad = tape.gradient(loss, adv)
+        grad = grad / (tf.reduce_mean(tf.abs(grad)) + 1e-8)
+
+        current_var = tf.math.reduce_variance(grad)
+        if prev_var is not None:
+            gpf = 0.5 + 0.01 * (
+                1.0 - tf.sqrt(current_var / (prev_var + 1e-8))
+            )
+            gpf = tf.clip_by_value(gpf, 0.0, 1.0)
+            grad = grad * gpf
+        prev_var = current_var
+
+        patch_mask = tf.cast(
+            tf.random.uniform(tf.shape(grad)) > 0.3,
+            tf.float32
+        )
+        grad = grad * patch_mask
+
+        momentum = DECAY * momentum + grad
+        adv = adv + alpha * tf.sign(momentum)
         adv = tf.clip_by_value(adv, x - EPSILON, x + EPSILON)
         adv = tf.clip_by_value(adv, -1.0, 1.0)
 
@@ -1398,6 +1444,8 @@ def run_attack(attack_name: str, model, src, tgt, attack_type: str, input_size):
         return ops_attack(model, src, tgt_emb, attack_type, input_size)
     if attack_name == 'ATT_CNN':
         return att_cnn_attack(model, src, tgt_emb, attack_type)
+    if attack_name == 'ATT_CNN_PATCH':
+        return att_cnn_patch_attack(model, src, tgt_emb, attack_type)
     if attack_name == 'LI_BOOST_MI':
         return li_boost_mi(model, src, tgt_emb, attack_type)
     if attack_name == 'GRA':

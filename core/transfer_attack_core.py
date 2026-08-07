@@ -26,6 +26,7 @@ ALL_ATTACKS = [
     'TI_FGSM',
     'SI_NI_FGSM',
     'MI_ADMIX_DI_TI',
+    'MIG',
     'ADAMSI_FGM',
     'PGN',
     'BPA_CNN',
@@ -48,6 +49,7 @@ ATTACK_COLS = {
     'TI_FGSM': 'ti_fgsm_path',
     'SI_NI_FGSM': 'si_ni_fgsm_path',
     'MI_ADMIX_DI_TI': 'mi_admix_di_ti_path',
+    'MIG': 'mig_path',
     'ADAMSI_FGM': 'adamsi_fgm_path',
     'PGN': 'pgn_path',
     'BPA_CNN': 'bpa_cnn_path',
@@ -272,9 +274,44 @@ def mi_fgsm(model, x, tgt_emb, attack_type):
     return adv
 
 
+# Student-contributed attack integration:
+# MIG by Lakshita Sharma (Bhagwan Parshuram Institute of Technology)
+# Paper: Ma et al., "Transferable Adversarial Attack for Both Vision Transformers
+# and Convolutional Networks via Momentum Integrated Gradients" (ICCV 2023).
+# This adapts the momentum-integrated-gradient direction to the face-verification cosine loss.
+def mig_attack(model, x, tgt_emb, attack_type, s_factor: int = 20):
+    adv = tf.identity(x)
+    g = tf.zeros_like(x)
+    alpha = EPSILON / NUM_ITER
+    tgt_emb = tf.nn.l2_normalize(tgt_emb, axis=1)
+    x_base = tf.ones_like(x) * -1.0  # black baseline in this repo's [-1, 1] input space
+
+    for _ in range(NUM_ITER):
+        grad_sum = tf.zeros_like(x)
+        # Approximate integrated gradients along the path from baseline to current adversarial image.
+        for k in range(1, s_factor + 1):
+            scale = tf.cast(k, tf.float32) / tf.cast(s_factor, tf.float32)
+            x_step = x_base + scale * (adv - x_base)
+            with tf.GradientTape() as tape:
+                tape.watch(x_step)
+                emb = compute_embedding(model, x_step)
+                cos = tf.reduce_sum(emb * tgt_emb, axis=1)
+                loss = attack_loss(cos, attack_type)
+            grad_sum += tape.gradient(loss, x_step)
+
+        grad = grad_sum / tf.cast(s_factor, tf.float32)
+        grad = grad / (tf.reduce_mean(tf.abs(grad)) + 1e-8)
+        g = DECAY * g + grad
+        adv = adv + alpha * tf.sign(g)
+        adv = tf.clip_by_value(adv, x - EPSILON, x + EPSILON)
+        adv = tf.clip_by_value(adv, -1.0, 1.0)
+    return adv
+
+
 # ADAMSI_FGM by Bhumika Singh (SRM Institute of Science and Technology)
 # Paper basis: On the Convergence of an Adaptive Momentum Method for
 # Adversarial Attacks (AAAI 2024)
+
 def adamsi_fgm(model, x, tgt_emb, attack_type, beta1=0.9, eps_adapt=1e-8):
     adv = tf.identity(x)
     m = tf.zeros_like(x)
@@ -1343,6 +1380,8 @@ def run_attack(attack_name: str, model, src, tgt, attack_type: str, input_size):
     if attack_name == 'MI_ADMIX_DI_TI':
         pool_imgs = tf.concat([src, tgt, src], axis=0)
         return mi_admix_di_ti(model, src, tgt_emb, attack_type, pool_imgs, input_size)
+    if attack_name == 'MIG':
+        return mig_attack(model, src, tgt_emb, attack_type)
     if attack_name == 'ADAMSI_FGM':
         return adamsi_fgm(model, src, tgt_emb, attack_type)
     if attack_name == 'BPA_CNN':

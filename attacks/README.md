@@ -15,6 +15,7 @@ Available attack folders:
 - `decowa`
 - `dpa_hma`
 - `li_boost_mi`
+- `mig`
 - `gra`
 - `idaa`
 - `dynamic_morph`

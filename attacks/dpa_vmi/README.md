@@ -27,3 +27,6 @@ A partial verification was run on 6 balanced source-target pairs using `Facenet5
 ## Code location
 - Shared implementation lives in [`core/transfer_attack_core.py`](../../core/transfer_attack_core.py)
 - Attack registry name: `DPA_VMI`
+
+## Student presentation
+- [`student_presentation.pdf`](student_presentation.pdf)

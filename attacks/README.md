@@ -14,6 +14,7 @@ Available attack folders:
 - `bsr`
 - `decowa`
 - `dpa_hma`
+- `dpa_vmi`
 - `li_boost_mi`
 - `mig`
 - `gra`

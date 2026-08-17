@@ -42,6 +42,7 @@ ALL_ATTACKS = [
     'IDAA',
     'DYNAMIC_MORPH',
     'DPA_HMA',
+    'DPA_VMI',
 ]
 
 ATTACK_COLS = {
@@ -66,6 +67,7 @@ ATTACK_COLS = {
     'IDAA': 'idaa_path',
     'DYNAMIC_MORPH': 'dynamic_morph_path',
     'DPA_HMA': 'dpa_hma_path',
+    'DPA_VMI': 'dpa_vmi_path',
 }
 
 EPSILON = 0.062
@@ -1354,6 +1356,80 @@ def dpa_hma(model, x, tgt_emb, attack_type, num_copies: int = 8, num_iter: int =
     return _dpa_hma_optimize(model, x, tgt_emb, attack_type, num_copies, num_iter)
 
 
+# Student-contributed attack integration:
+# DPA_VMI by Amogh Saxena (ADGIPS, Delhi)
+# Hybrid basis:
+#   1. DPA: Improving the Transferability of Adversarial Attacks on Face
+#      Recognition with Diverse Parameters Augmentation (CVPR 2025)
+#   2. VMI: Enhancing the Transferability of Adversarial Attacks through
+#      Variance Tuning (CVPR 2021)
+def dpa_vmi(model, x, tgt_emb, attack_type, num_copies=8, beta=1.5, num_iter=NUM_ITER, decay=DECAY):
+    """DPA-VMI: DPA projective transforms with VMI-style variance tuning."""
+    _ensure_dpa_hma_seed()
+    adv = tf.Variable(tf.identity(x), trainable=True, dtype=tf.float32)
+    momentum = tf.zeros_like(x)
+    alpha = EPSILON / num_iter
+    radius = beta * EPSILON
+    tgt_emb = tf.nn.l2_normalize(tgt_emb, axis=1)
+    kernel = gaussian_kernel(k=5, sigma=1.0)
+
+    for _ in range(num_iter):
+        nes = tf.Variable(adv + decay * alpha * momentum, trainable=True, dtype=tf.float32)
+
+        with tf.GradientTape() as hard_tape:
+            hard_tape.watch(nes)
+            hard_emb = compute_embedding(model, nes)
+            hard_cos = tf.reduce_sum(hard_emb * tgt_emb, axis=1)
+            hard_loss = attack_loss(hard_cos, attack_type)
+        hard_grad = hard_tape.gradient(hard_loss, nes)
+        hard_grad = tf.zeros_like(nes) if hard_grad is None else tf.where(
+            tf.math.is_finite(hard_grad), hard_grad, tf.zeros_like(hard_grad)
+        )
+
+        with tf.GradientTape() as tape:
+            tape.watch(nes)
+            batch = _dpa_hma_transform_batch(nes, hard_grad, num_copies)
+            tgt_rep = tf.repeat(tgt_emb, num_copies, axis=0)
+            emb = compute_embedding(model, batch)
+            cos = tf.reduce_sum(emb * tgt_rep, axis=1)
+            loss = attack_loss(cos, attack_type)
+        cur_grad = tape.gradient(loss, nes)
+        cur_grad = tf.zeros_like(nes) if cur_grad is None else tf.where(
+            tf.math.is_finite(cur_grad), cur_grad, tf.zeros_like(cur_grad)
+        )
+
+        neighbor_grad_sum = tf.zeros_like(x)
+        for _ in range(num_copies):
+            noise = tf.random.uniform(tf.shape(nes), minval=-radius, maxval=radius)
+            nes_neighbor = tf.Variable(tf.clip_by_value(nes + noise, -1.0, 1.0), trainable=True, dtype=tf.float32)
+            with tf.GradientTape() as tape_n:
+                tape_n.watch(nes_neighbor)
+                batch_n = _dpa_hma_transform_batch(nes_neighbor, hard_grad, num_copies=4)
+                tgt_rep_n = tf.repeat(tgt_emb, 4, axis=0)
+                emb_n = compute_embedding(model, batch_n)
+                cos_n = tf.reduce_sum(emb_n * tgt_rep_n, axis=1)
+                loss_n = attack_loss(cos_n, attack_type)
+            g_n = tape_n.gradient(loss_n, nes_neighbor)
+            g_n = tf.zeros_like(nes) if g_n is None else g_n
+            neighbor_grad_sum += g_n
+        avg_neighbor_grad = neighbor_grad_sum / float(num_copies)
+        avg_neighbor_grad = tf.where(
+            tf.math.is_finite(avg_neighbor_grad), avg_neighbor_grad, tf.zeros_like(avg_neighbor_grad)
+        )
+
+        corrected_grad = cur_grad + (avg_neighbor_grad - cur_grad)
+        smoothed_grad = tf.nn.depthwise_conv2d(corrected_grad, kernel, [1, 1, 1, 1], 'SAME')
+
+        grad_norm = smoothed_grad / (tf.reduce_mean(tf.abs(smoothed_grad)) + 1e-8)
+        momentum = decay * momentum + grad_norm
+
+        adv.assign(adv + alpha * tf.sign(momentum))
+        adv.assign(tf.clip_by_value(adv, x - EPSILON, x + EPSILON))
+        adv.assign(tf.clip_by_value(adv, -1.0, 1.0))
+
+    return tf.identity(adv)
+
+
 
 
 def dynamic_morph_mi_fgsm(model, src, tgt, attack_type, input_size):
@@ -1456,6 +1532,8 @@ def run_attack(attack_name: str, model, src, tgt, attack_type: str, input_size):
         return idaa(model, src, tgt_emb, attack_type, input_size)
     if attack_name == 'DPA_HMA':
         return dpa_hma(model, src, tgt_emb, attack_type)
+    if attack_name == 'DPA_VMI':
+        return dpa_vmi(model, src, tgt_emb, attack_type)
     if attack_name == 'DYNAMIC_MORPH':
         return dynamic_morph_mi_fgsm(model, src, tgt, attack_type, input_size)
     raise ValueError(f'Unsupported attack: {attack_name}')

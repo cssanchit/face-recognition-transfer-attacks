@@ -15,6 +15,7 @@ This is a student adaptation for the shared face-verification pipeline, not an o
 ## Repository contributor
 
 - **Hiya Trehan**, IGDTUW
+- GitHub: [Heya28](https://github.com/Heya28)
 
 ## Usage
 

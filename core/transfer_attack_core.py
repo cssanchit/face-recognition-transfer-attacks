@@ -44,6 +44,7 @@ ALL_ATTACKS = [
     'DPA_HMA',
     'DPA_VMI',
     'VMI_FGSM',
+    'MEF',
 ]
 
 ATTACK_COLS = {
@@ -70,6 +71,7 @@ ATTACK_COLS = {
     'DPA_HMA': 'dpa_hma_path',
     'DPA_VMI': 'dpa_vmi_path',
     'VMI_FGSM': 'vmi_fgsm_path',
+    'MEF': 'mef_path',
 }
 
 EPSILON = 0.062
@@ -91,6 +93,11 @@ GRA_SIGN_DECAY = 0.94
 PGN_BETA = 3.0
 PGN_GAMMA = 0.5
 PGN_NUM_NEIGHBOR = 20
+MEF_INNER_MU = 0.9
+MEF_OUTER_MU = 0.5
+MEF_GAMMA = 2.0
+MEF_KESAI = 0.15
+MEF_SAMPLE_NUM = 20
 DPA_HMA_SEED = int(os.environ.get('TRANSFER_ATTACK_DPA_HMA_SEED', '1'))
 DPA_HMA_NUM_ITER = int(os.environ.get('TRANSFER_ATTACK_DPA_HMA_NUM_ITER', str(NUM_ITER)))
 DPA_HMA_CANONICAL_SIZE = (224, 224)
@@ -1530,6 +1537,48 @@ def vmi_fgsm(model, x, tgt_emb, attack_type, beta=1.5, n=20):
     return adv
 
 
+def mef_attack(model, x, tgt_emb, attack_type):
+    """Maximin Expected Flatness adapted for CNN face verification."""
+    adv = tf.identity(x)
+    alpha = EPSILON / NUM_ITER
+    tgt_emb = tf.nn.l2_normalize(tgt_emb, axis=1)
+    grad_prev = tf.zeros_like(x)
+    grad_pgia = tf.zeros([MEF_SAMPLE_NUM] + x.shape.as_list(), dtype=x.dtype)
+
+    for _ in range(NUM_ITER):
+        grad_list = []
+        for k in range(MEF_SAMPLE_NUM):
+            noise = tf.random.uniform(
+                tf.shape(adv), -MEF_GAMMA * EPSILON,
+                MEF_GAMMA * EPSILON, dtype=adv.dtype)
+            img_near = adv + noise
+            img_min = img_near + MEF_KESAI * EPSILON * grad_pgia[k]
+            with tf.GradientTape() as tape:
+                tape.watch(img_min)
+                emb = compute_embedding(model, img_min)
+                cos = tf.reduce_sum(emb * tgt_emb, axis=1)
+                loss = attack_loss(cos, attack_type)
+            grad = tape.gradient(loss, img_min)
+            grad = tf.where(tf.math.is_finite(grad), grad, tf.zeros_like(grad))
+            grad_list.append(grad)
+
+        grad_stack = tf.stack(grad_list, axis=0)
+        grad_norm = grad_stack / (
+            tf.reduce_mean(tf.abs(grad_stack), axis=[2, 3, 4], keepdims=True)
+            + 1e-8
+        )
+        grad_pgia = grad_norm - MEF_INNER_MU * grad_pgia
+        grad = tf.reduce_mean(grad_stack, axis=0)
+        grad /= tf.reduce_mean(tf.abs(grad)) + 1e-8
+        grad += MEF_OUTER_MU * grad_prev
+        grad_prev = grad
+        adv = adv + alpha * tf.sign(grad)
+        adv = tf.clip_by_value(adv, x - EPSILON, x + EPSILON)
+        adv = tf.clip_by_value(adv, -1.0, 1.0)
+
+    return adv
+
+
 def build_attacker(model_name: str):
     return DeepFace.build_model(model_name).model
 
@@ -1581,6 +1630,8 @@ def run_attack(attack_name: str, model, src, tgt, attack_type: str, input_size):
         return dpa_vmi(model, src, tgt_emb, attack_type)
     if attack_name == 'VMI_FGSM':
         return vmi_fgsm(model, src, tgt_emb, attack_type)
+    if attack_name == 'MEF':
+        return mef_attack(model, src, tgt_emb, attack_type)
     if attack_name == 'DYNAMIC_MORPH':
         return dynamic_morph_mi_fgsm(model, src, tgt, attack_type, input_size)
     raise ValueError(f'Unsupported attack: {attack_name}')

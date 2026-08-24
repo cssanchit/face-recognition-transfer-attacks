@@ -43,6 +43,7 @@ ALL_ATTACKS = [
     'DYNAMIC_MORPH',
     'DPA_HMA',
     'DPA_VMI',
+    'VMI_FGSM',
 ]
 
 ATTACK_COLS = {
@@ -68,6 +69,7 @@ ATTACK_COLS = {
     'DYNAMIC_MORPH': 'dynamic_morph_path',
     'DPA_HMA': 'dpa_hma_path',
     'DPA_VMI': 'dpa_vmi_path',
+    'VMI_FGSM': 'vmi_fgsm_path',
 }
 
 EPSILON = 0.062
@@ -1485,6 +1487,49 @@ def dynamic_morph_mi_fgsm(model, src, tgt, attack_type, input_size):
         
     return adv
 
+def vmi_fgsm(model, x, tgt_emb, attack_type, beta=1.5, n=20):
+    """Variance-tuned momentum attack adapted for CNN face verification.
+
+    The source method estimates local gradient variance around the current
+    image. The face-verification adaptation keeps that update rule and uses
+    the shared embedding cosine objective.
+    """
+    adv = tf.identity(x)
+    momentum = tf.zeros_like(x)
+    alpha = EPSILON / NUM_ITER
+    tgt_emb = tf.nn.l2_normalize(tgt_emb, axis=1)
+
+    for _ in range(NUM_ITER):
+        with tf.GradientTape() as tape:
+            tape.watch(adv)
+            emb = compute_embedding(model, adv)
+            cos = tf.reduce_sum(emb * tgt_emb, axis=1)
+            loss = attack_loss(cos, attack_type)
+        grad = tape.gradient(loss, adv)
+
+        grad_var = tf.zeros_like(grad)
+        for _ in range(n):
+            neighbor = adv + tf.random.uniform(
+                tf.shape(adv), -beta * EPSILON, beta * EPSILON)
+            neighbor = tf.clip_by_value(neighbor, -1.0, 1.0)
+            with tf.GradientTape() as neighbor_tape:
+                neighbor_tape.watch(neighbor)
+                emb_neighbor = compute_embedding(model, neighbor)
+                cos_neighbor = tf.reduce_sum(emb_neighbor * tgt_emb, axis=1)
+                neighbor_loss = attack_loss(cos_neighbor, attack_type)
+            neighbor_grad = neighbor_tape.gradient(neighbor_loss, neighbor)
+            grad_var += neighbor_grad - grad
+
+        tuned_grad = grad + grad_var / float(n)
+        tuned_grad /= tf.reduce_mean(tf.abs(tuned_grad)) + 1e-8
+        momentum = DECAY * momentum + tuned_grad
+        adv = adv + alpha * tf.sign(momentum)
+        adv = tf.clip_by_value(adv, x - EPSILON, x + EPSILON)
+        adv = tf.clip_by_value(adv, -1.0, 1.0)
+
+    return adv
+
+
 def build_attacker(model_name: str):
     return DeepFace.build_model(model_name).model
 
@@ -1534,6 +1579,8 @@ def run_attack(attack_name: str, model, src, tgt, attack_type: str, input_size):
         return dpa_hma(model, src, tgt_emb, attack_type)
     if attack_name == 'DPA_VMI':
         return dpa_vmi(model, src, tgt_emb, attack_type)
+    if attack_name == 'VMI_FGSM':
+        return vmi_fgsm(model, src, tgt_emb, attack_type)
     if attack_name == 'DYNAMIC_MORPH':
         return dynamic_morph_mi_fgsm(model, src, tgt, attack_type, input_size)
     raise ValueError(f'Unsupported attack: {attack_name}')

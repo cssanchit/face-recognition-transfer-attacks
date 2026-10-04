@@ -16,6 +16,10 @@ This repository focuses on **attack code, usage instructions, paper references, 
 
 FaceSM is enabled by default in the command-line runner and `run_attack` API. Use `--objective vanilla` for the conventional objective or `--objective both` for a side-by-side comparison. The source-separation weight defaults to `--source-lambda 0.20`; setting it to zero retains mirror fusion alone.
 
+![FaceSM overview: mirror-fused embeddings and source-separated verification objectives](docs/images/facesm-overview.png)
+
+**FaceSM overview.** Mirror fusion combines original and horizontally flipped embeddings, while source separation adds explicit repulsion from the source identity to the verification objective. Reproduced from Figure 1 of the FaceSM paper.
+
 ### Brief experimental results
 
 In the paper's evaluation, FaceSM improved breach rate by up to **10.48 percentage points**, with an average improvement of **6.27 percentage points across 19 valid surrogate–victim pairs**. The component ablation found a larger contribution from mirror fusion and an additional benefit from source separation. See the [result summaries](paper/results_summary/) for the reported aggregate measurements.

@@ -1,8 +1,49 @@
 # face-recognition-transfer-attacks
 
-A public repository of transfer-based adversarial attack implementations adapted for **CNN-based face recognition / face verification systems**.
+A public repository of transfer-based adversarial attacks for **CNN-based face recognition / face verification**, with **vanilla and FaceSM objectives** in one shared runner.
 
 This repository focuses on **attack code, usage instructions, paper references, and contributor attribution**. It does **not** aim to be a public benchmark leaderboard. The implementations here were adapted in a shared face-verification pipeline and are intended to help researchers and students quickly reuse, inspect, and extend transfer attacks in the face-recognition setting.
+
+
+## FaceSM and ICISS 2026
+
+**FaceSM: Improving Transferable Adversarial Attacks via Source-Separated and Mirror-Fused Objectives for Face Verification** has been **accepted for presentation at ICISS 2026**.
+
+Authors: **Sanchit Gupta, Vishakha Agrawal, Pratishtha Jaiswal, and Ananya Jain**.
+
+FaceSM combines a source-separated verification objective with normalized fusion of original and horizontally flipped embeddings. The shared runner supports impersonation and dodging, using `--objective vanilla`, `--objective facesm`, or `--objective both`. The default remains vanilla; FaceSM uses `--source-lambda 0.20` by default. A zero weight gives mirror fusion alone.
+
+The reusable objective is adapted from the authors' anonymous review package, now preserved under [`paper/`](paper/) with its experiment scripts, result summaries, RobFR patches, and Sibling-Attack integration. See the [integration and reproduction notes](docs/facesm.md) for scope and missing external dependencies.
+
+The paper evaluates nine generic backbones: PGD, MI-FGSM, TI-FGSM, SI-NI-FGSM, MI-ADMIX-DI-TI, BPA, BSR, DECOWA, and SIA. The shared objective is also exposed for other runnable contributed attacks; **these additional integrations are not reported FaceSM benchmark results**. Mirror fusion provides the larger gain in the reported SI-NI-FGSM ablation; source separation adds a smaller incremental benefit.
+
+### Run vanilla and FaceSM together
+
+```bash
+python -m experiments.generate_adversarial_examples \
+  --input-csv /path/to/input_pairs.csv \
+  --dataset-root /path/to/aligned_faces \
+  --output-root /path/to/outputs \
+  --attacker-model ArcFace \
+  --attacks MI_FGSM,SI_NI_FGSM,BSR \
+  --objective both --source-lambda 0.20
+```
+
+Vanilla outputs retain their attack names; FaceSM outputs use an `_SM` suffix in directories and CSV columns. Supply your own face crops, pair lists, and model weights. Generation does not by itself measure transfer success; evaluate on held-out victim models with appropriately calibrated verification thresholds.
+
+### Cite FaceSM
+
+```bibtex
+@misc{gupta2026facesm,
+  title = {FaceSM: Improving Transferable Adversarial Attacks via Source-Separated and Mirror-Fused Objectives for Face Verification},
+  author = {Gupta, Sanchit and Agrawal, Vishakha and Jaiswal, Pratishtha and Jain, Ananya},
+  year = {2026},
+  note = {Accepted for presentation at ICISS 2026},
+  howpublished = {\url{https://github.com/cssanchit/face-recognition-transfer-attacks}}
+}
+```
+
+Proceedings pages and DOI will be added when available. Please also cite the original papers for the attack backbones you use; contributor credits below are retained.
 
 ## Scope
 - CNN-oriented face-recognition attack adaptations
@@ -19,6 +60,9 @@ To avoid ambiguity, this repository distinguishes between:
 
 ## Repository layout
 - `core/transfer_attack_core.py`: shared attack implementations and registry
+- `core/facesm_objective.py`: mirror fusion and source-separated scores
+- `paper/`: original FaceSM review code and compact result summaries
+- `tests/test_facesm.py`: objective and integration tests
 - `experiments/generate_adversarial_examples.py`: generic batch generation script
 - `attacks/`: per-attack notes, references, contributor information, and student slide PDFs
 - `docs/usage.md`: how to run the code
@@ -52,6 +96,8 @@ To avoid ambiguity, this repository distinguishes between:
 | [`VMI_FGSM`](attacks/vmi_fgsm) | *Enhancing the Transferability of Adversarial Attacks through Variance Tuning* (CVPR 2021) | Xiaosen Wang, Kun He | CNN face-verification adaptation contributed by [**Khushi**](https://github.com/Khushi250321) from **IGDTUW** |
 | [`MEF`](attacks/mef) | *Boosting Adversarial Transferability with Low-Cost Optimization via Maximin Expected Flatness* (IEEE T-IFS 2024) | Chunlin Qiu, Ang Li, Yiheng Duan, Shenyi Zhang, Yuanjie Zhang, Lingchen Zhao, Qian Wang | CNN face-verification adaptation contributed by [**Hiya Trehan**](https://github.com/Heya28) from **IGDTUW** |
 | [`DYNAMIC_MORPH`](attacks/dynamic_morph) | Student-submitted morph-style semantic face-region mixing basis for CNN face verification | Not independently standardized in the submitted materials | CNN face-verification adaptation contributed by [**Puneet Kumar**](https://github.com/puneetkumar-2005) from **Indian Institute of Information Technology, Senapati, Manipur** |
+
+IDAA remains documented for attribution but is not runnable: its implementation function is absent from the supplied vanilla core. DYNAMIC_MORPH remains vanilla-only because it perturbs a mixed-image baseline instead of the original source.
 
 ## Quick start
 Install dependencies:

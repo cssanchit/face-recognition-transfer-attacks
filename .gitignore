@@ -6,3 +6,9 @@ __pycache__/
 outputs/
 adv_outputs/
 *.ipynb_checkpoints
+
+.venv/
+token.txt
+.env
+*.pth
+*.pt

@@ -1,0 +1,5 @@
+attack,victim_model,n,vanilla_breach_rate_pct,facesm_breach_rate_pct,facesm_minus_vanilla_breach_pp,vanilla_impact_mean,facesm_impact_mean,facesm_minus_vanilla_impact
+Sibling-Attack,VGG-Face,300,9.00,11.33,2.33,0.0103,0.0218,0.0115
+Sibling-Attack,Facenet512,300,14.00,16.67,2.67,0.0425,0.0669,0.0244
+Sibling-Attack,ArcFace,300,1.67,2.00,0.33,0.0651,0.0899,0.0248
+Sibling-Attack,AVERAGE,900,8.22,10.00,1.78,0.0393,0.0595,0.0202

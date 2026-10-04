@@ -1,23 +1,36 @@
 # face-recognition-transfer-attacks
 
-A public repository of transfer-based adversarial attacks for **CNN-based face recognition / face verification**, with **vanilla and FaceSM objectives** in one shared runner.
+A public repository of transfer-based adversarial attacks for **CNN-based face recognition / face verification**, with **FaceSM as the default objective** and vanilla available as an option.
 
 This repository focuses on **attack code, usage instructions, paper references, and contributor attribution**. It does **not** aim to be a public benchmark leaderboard. The implementations here were adapted in a shared face-verification pipeline and are intended to help researchers and students quickly reuse, inspect, and extend transfer attacks in the face-recognition setting.
 
 
-## FaceSM and ICISS 2026
+## FaceSM: the default verification objective
 
-**FaceSM: Improving Transferable Adversarial Attacks via Source-Separated and Mirror-Fused Objectives for Face Verification** has been **accepted for presentation at ICISS 2026**.
+**FaceSM** is an objective function designed to improve the transferability of adversarial attacks on face verification systems. It combines:
 
-Authors: **Sanchit Gupta, Vishakha Agrawal, Pratishtha Jaiswal, and Ananya Jain**.
+- **Source separation:** explicitly reduces alignment with the original source identity while optimizing the verification score.
+- **Mirror fusion:** averages L2-normalized embeddings of the original and horizontally flipped image, then renormalizes the result to form a shared representation.
+- **Impersonation and dodging support:** attracts the adversarial image toward a target identity for impersonation, or reduces similarity to a genuine reference for dodging.
+- **Integration with existing attacks:** changes the embedding representation and objective while retaining the attack's optimizer, iteration schedule, and perturbation budget.
 
-FaceSM combines a source-separated verification objective with normalized fusion of original and horizontally flipped embeddings. The shared runner supports impersonation and dodging, using `--objective vanilla`, `--objective facesm`, or `--objective both`. The default remains vanilla; FaceSM uses `--source-lambda 0.20` by default. A zero weight gives mirror fusion alone.
+FaceSM is enabled by default in the command-line runner and `run_attack` API. Use `--objective vanilla` for the conventional objective or `--objective both` for a side-by-side comparison. The source-separation weight defaults to `--source-lambda 0.20`; setting it to zero retains mirror fusion alone.
 
-The reusable objective is adapted from the authors' anonymous review package, now preserved under [`paper/`](paper/) with its experiment scripts, result summaries, RobFR patches, and Sibling-Attack integration. See the [integration and reproduction notes](docs/facesm.md) for scope and missing external dependencies.
+### Brief experimental results
 
-The paper evaluates nine generic backbones: PGD, MI-FGSM, TI-FGSM, SI-NI-FGSM, MI-ADMIX-DI-TI, BPA, BSR, DECOWA, and SIA. The shared objective is also exposed for other runnable contributed attacks; **these additional integrations are not reported FaceSM benchmark results**. Mirror fusion provides the larger gain in the reported SI-NI-FGSM ablation; source separation adds a smaller incremental benefit.
+In the paper's evaluation, FaceSM improved breach rate by up to **10.48 percentage points**, with an average improvement of **6.27 percentage points across 19 valid surrogate–victim pairs**. The component ablation found a larger contribution from mirror fusion and an additional benefit from source separation. See the [result summaries](paper/results_summary/) for the reported aggregate measurements.
 
-### Run vanilla and FaceSM together
+For the full methodology, experimental setup, results, and analysis, please refer to our paper:
+
+> **FaceSM: Improving Transferable Adversarial Attacks via Source-Separated and Mirror-Fused Objectives for Face Verification**
+>
+> Sanchit Gupta, Vishakha Agrawal, Pratishtha Jaiswal, and Ananya Jain.
+>
+> **Accepted for presentation at ICISS 2026.**
+
+A public paper link and proceedings details will be added when available. The accompanying code and experimental material are in [`paper/`](paper/); see the [integration notes](docs/facesm.md) for setup details.
+
+### Run with FaceSM
 
 ```bash
 python -m experiments.generate_adversarial_examples \
@@ -25,11 +38,10 @@ python -m experiments.generate_adversarial_examples \
   --dataset-root /path/to/aligned_faces \
   --output-root /path/to/outputs \
   --attacker-model ArcFace \
-  --attacks MI_FGSM,SI_NI_FGSM,BSR \
-  --objective both --source-lambda 0.20
+  --attacks MI_FGSM,SI_NI_FGSM,BSR
 ```
 
-Vanilla outputs retain their attack names; FaceSM outputs use an `_SM` suffix in directories and CSV columns. Supply your own face crops, pair lists, and model weights. Generation does not by itself measure transfer success; evaluate on held-out victim models with appropriately calibrated verification thresholds.
+This command uses FaceSM automatically. You can also specify `--objective facesm` explicitly. FaceSM outputs use an `_SM` suffix in directories and CSV columns; vanilla outputs retain their attack names. Supply your own face crops, pair lists, and model weights.
 
 ### Cite FaceSM
 

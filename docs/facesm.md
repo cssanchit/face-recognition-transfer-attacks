@@ -9,9 +9,9 @@ For target cosine `c_t`, source cosine `c_s`, and weight `lambda`, the maximized
 - Impersonation: `c_t - lambda * c_s`.
 - Dodging: `(1 - c_t) + lambda * (1 - c_s)`.
 
-A per-pair model wrapper performs mirror fusion and holds the fixed source embedding. All gradient objectives in the shared attack implementations use the same loss helper, including neighbor, transformation, and DECOWA inner-loop objectives. Vanilla calls retain their original cosine score. No global loss monkey-patching or model-weight mutation is used.
+A per-pair model wrapper performs mirror fusion and holds the fixed source embedding. All gradient objectives in the shared attack implementations use the same loss helper, including neighbor, transformation, and DECOWA inner-loop objectives. FaceSM is the default; explicitly selecting vanilla retains the original cosine score. No global loss monkey-patching or model-weight mutation is used.
 
-The integration retains each existing attack's optimizer, iteration count, and perturbation settings. It does not promise exact reproduction of the paper: the contributed implementations and defaults can differ from the paper's experiment configuration. Extra backbones are extensions, not new measured results. DYNAMIC_MORPH remains vanilla-only due to its different perturbation reference, and the incomplete IDAA registry entry has been disabled.
+The integration retains each existing attack's optimizer, iteration count, and perturbation settings. It does not promise exact reproduction of the paper: the contributed implementations and defaults can differ from the paper's experiment configuration. DYNAMIC_MORPH remains vanilla-only due to its different perturbation reference, and the incomplete IDAA registry entry has been disabled.
 
 ## Original paper materials
 

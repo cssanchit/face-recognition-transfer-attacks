@@ -35,7 +35,8 @@ def main():
     ap.add_argument('--output-root', required=True, help='Directory where generated adversarial images and path CSV will be written.')
     ap.add_argument('--attacker-model', required=True, choices=list(ATTACKER_MODELS.keys()))
     ap.add_argument('--attacks', default=None, help='Comma-separated attack names from ALL_ATTACKS.')
-    ap.add_argument('--objective', choices=['vanilla', 'facesm', 'both'], default='vanilla')
+    ap.add_argument('--objective', choices=['vanilla', 'facesm', 'both'], default='facesm',
+                    help='Verification objective (default: facesm); both generates both variants.')
     ap.add_argument('--source-lambda', type=float, default=0.20,
                     help='Source repulsion weight; zero gives mirror fusion only.')
     args = ap.parse_args()

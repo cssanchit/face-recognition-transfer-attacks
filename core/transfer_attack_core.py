@@ -1568,7 +1568,7 @@ def build_attacker(model_name: str):
 FACESM_ATTACKS = [name for name in ALL_ATTACKS if name != "DYNAMIC_MORPH"]
 
 def run_attack(attack_name: str, model, src, tgt, attack_type: str, input_size,
-               *, objective="vanilla", source_lambda=0.20):
+               *, objective="facesm", source_lambda=0.20):
     """Generate one pair; select vanilla or FaceSM without changing attack dynamics."""
     if objective not in ("vanilla", "facesm"):
         raise ValueError(f"Unsupported objective: {objective}")

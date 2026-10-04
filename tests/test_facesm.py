@@ -63,13 +63,13 @@ class FaceSMTests(unittest.TestCase):
         for attack in ['PGD', 'MI_FGSM', 'TI_FGSM', 'SI_NI_FGSM', 'BPA_CNN']:
             for kind in ['impersonation_attack', 'dodging_attack']:
                 tf.random.set_seed(12)
-                before = core.run_attack(attack, self.model, self.source, self.target, kind, (16,16))
+                before = core.run_attack(attack, self.model, self.source, self.target, kind, (16,16), objective='vanilla')
                 adv = core.run_attack(attack, self.model, self.source, self.target, kind, (16,16), objective='facesm')
                 self.assertTrue(np.isfinite(adv).all())
                 self.assertLessEqual(float(tf.reduce_max(tf.abs(adv-self.source))), core.EPSILON+1e-6)
                 self.assertLessEqual(float(tf.reduce_max(tf.abs(adv))), 1)
                 tf.random.set_seed(12)
-                after = core.run_attack(attack, self.model, self.source, self.target, kind, (16,16))
+                after = core.run_attack(attack, self.model, self.source, self.target, kind, (16,16), objective='vanilla')
                 np.testing.assert_allclose(before, after)
 
     def test_all_facesm_backbones(self):
@@ -112,6 +112,19 @@ class FaceSMTests(unittest.TestCase):
             self.assertNotEqual(result.loc[0, 'mi_fgsm_path'], result.loc[0, 'mi_fgsm_sm_path'])
             self.assertEqual(result.loc[0, 'objective'], 'both')
             self.assertEqual(result.loc[0, 'source_lambda'], .2)
+            default_args = args[:-2]  # Omit --objective both.
+            with patch.object(sys, 'argv', default_args), patch.object(cli, 'build_attacker', return_value=self.model), patch.dict(cli.ATTACKER_MODELS, ArcFace=(16,16)):
+                cli.main()
+            default_result = pd.read_csv(root/'outputs'/'ArcFace_facesm_adv_paths.csv')
+            self.assertEqual(default_result.loc[0, 'objective'], 'facesm')
+            self.assertIn('mi_fgsm_sm_path', default_result.columns)
+            self.assertNotIn('mi_fgsm_path', default_result.columns)
+            explicit = core.run_attack('MI_FGSM', self.model, self.source, self.target,
+                                       'impersonation_attack', (16,16), objective='facesm')
+            default = core.run_attack('MI_FGSM', self.model, self.source, self.target,
+                                      'impersonation_attack', (16,16))
+            np.testing.assert_allclose(default, explicit)
+
 
     def test_invalid_options(self):
         for weight in [-1, float('nan'), float('inf')]:

@@ -6,3 +6,4 @@ keras
 deepface
 torch
 torchvision
+opencv-python

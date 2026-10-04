@@ -1,0 +1,222 @@
+{
+  "VGG-Face": {
+    "lfw_pairs": {
+      "FAR": 0.001,
+      "threshold": 0.225549,
+      "GAR": 0.9989
+    },
+    "celeba_pairs": {
+      "FAR": 0.001,
+      "threshold": 0.21808,
+      "GAR": 0.9657
+    },
+    "vggface2_pairs": {
+      "FAR": 0.001,
+      "threshold": 0.24077,
+      "GAR": 0.8874
+    },
+    "digiface": {
+      "FAR": 0.001,
+      "threshold": 0.362156,
+      "GAR": 0.7651
+    }
+  },
+  "Facenet": {
+    "lfw_pairs": {
+      "FAR": 0.001,
+      "threshold": 0.270467,
+      "GAR": 1.0
+    },
+    "celeba_pairs": {
+      "FAR": 0.001,
+      "threshold": 0.269731,
+      "GAR": 1.0
+    },
+    "vggface2_pairs": {
+      "FAR": 0.001,
+      "threshold": 0.337507,
+      "GAR": 0.9987
+    },
+    "digiface": {
+      "FAR": 0.001,
+      "threshold": 0.560365,
+      "GAR": 0.7169
+    }
+  },
+  "Facenet512": {
+    "lfw_pairs": {
+      "FAR": 0.001,
+      "threshold": 0.306555,
+      "GAR": 1.0
+    },
+    "celeba_pairs": {
+      "FAR": 0.001,
+      "threshold": 0.293804,
+      "GAR": 0.9983
+    },
+    "vggface2_pairs": {
+      "FAR": 0.001,
+      "threshold": 0.35762,
+      "GAR": 0.9987
+    },
+    "digiface": {
+      "FAR": 0.001,
+      "threshold": 0.558989,
+      "GAR": 0.8042
+    }
+  },
+  "SFace": {
+    "lfw_pairs": {
+      "FAR": 0.001,
+      "threshold": 0.380515,
+      "GAR": 0.9147
+    },
+    "celeba_pairs": {
+      "FAR": 0.001,
+      "threshold": 0.426303,
+      "GAR": 0.5597
+    },
+    "vggface2_pairs": {
+      "FAR": 0.001,
+      "threshold": 0.362495,
+      "GAR": 0.5122
+    },
+    "digiface": {
+      "FAR": 0.001,
+      "threshold": 0.424746,
+      "GAR": 0.6787
+    }
+  },
+  "Dlib": {
+    "lfw_pairs": {
+      "FAR": 0.001,
+      "threshold": 0.931813,
+      "GAR": 0.8657
+    },
+    "celeba_pairs": {
+      "FAR": 0.001,
+      "threshold": 0.939895,
+      "GAR": 0.716
+    },
+    "vggface2_pairs": {
+      "FAR": 0.001,
+      "threshold": 0.937589,
+      "GAR": 0.5053
+    },
+    "digiface": {
+      "FAR": 0.001,
+      "threshold": 0.948863,
+      "GAR": 0.255
+    }
+  },
+  "ArcFace": {
+    "lfw_pairs": {
+      "FAR": 0.001,
+      "threshold": 0.380176,
+      "GAR": 0.9872
+    },
+    "celeba_pairs": {
+      "FAR": 0.001,
+      "threshold": 0.389981,
+      "GAR": 0.9098
+    },
+    "vggface2_pairs": {
+      "FAR": 0.001,
+      "threshold": 0.423448,
+      "GAR": 0.661
+    },
+    "digiface": {
+      "FAR": 0.001,
+      "threshold": 0.373295,
+      "GAR": 0.7781
+    }
+  },
+  "GhostFaceNet": {
+    "lfw_pairs": {
+      "FAR": 0.001,
+      "threshold": 0.275587,
+      "GAR": 0.6087
+    },
+    "celeba_pairs": {
+      "FAR": 0.001,
+      "threshold": 0.163008,
+      "GAR": 0.883
+    },
+    "vggface2_pairs": {
+      "FAR": 0.001,
+      "threshold": 0.254338,
+      "GAR": 0.5478
+    },
+    "digiface": {
+      "FAR": 0.001,
+      "threshold": 0.318656,
+      "GAR": 0.9418
+    }
+  },
+  "buffalo_s": {
+    "lfw_pairs": {
+      "FAR": 0.001,
+      "threshold": 0.313912,
+      "GAR": 0.8273
+    },
+    "celeba_pairs": {
+      "FAR": 0.001,
+      "threshold": 0.211797,
+      "GAR": 0.8722
+    },
+    "vggface2_pairs": {
+      "FAR": 0.001,
+      "threshold": 0.250269,
+      "GAR": 0.6867
+    },
+    "digiface": {
+      "FAR": 0.001,
+      "threshold": 0.317671,
+      "GAR": 0.9568
+    }
+  },
+  "FaceAPI": {
+    "lfw_pairs": {
+      "FAR": 0.001,
+      "threshold": 0.123447,
+      "GAR": 1.0
+    },
+    "celeba_pairs": {
+      "FAR": 0.001,
+      "threshold": 0.106551,
+      "GAR": 0.9975
+    },
+    "vggface2_pairs": {
+      "FAR": 0.001,
+      "threshold": 0.10973,
+      "GAR": 0.9868
+    },
+    "digiface": {
+      "FAR": 0.001,
+      "threshold": 0.20056,
+      "GAR": 0.9403
+    }
+  },
+  "IR152": {
+    "lfw_pairs": {
+      "FAR": 0.001,
+      "threshold": 0.189806,
+      "GAR": 1.0
+    },
+    "celeba_pairs": {
+      "FAR": 0.001,
+      "threshold": 0.168551,
+      "GAR": 0.9942
+    },
+    "vggface2_pairs": {
+      "FAR": 0.001,
+      "threshold": 0.184988,
+      "GAR": 0.9562
+    },
+    "digiface": {
+      "FAR": 0.001,
+      "threshold": 0.30792,
+      "GAR": 0.8353
+    }
+  }
+}

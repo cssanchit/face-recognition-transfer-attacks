@@ -1,0 +1,15 @@
+numpy
+scipy
+scikit-learn
+scikit-image
+opencv-python
+matplotlib
+pandas
+tqdm
+torch
+torchvision
+easydict
+tensorlayer
+progressbar2
+omegaconf
+deepface

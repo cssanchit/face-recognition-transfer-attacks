@@ -48,3 +48,22 @@ This repository does not redistribute face datasets. Users should supply their o
 
 ## 7. Reproducibility note
 Some contributed attacks are faithful face-verification adaptations of the original methods, while others are CNN-oriented reinterpretations inspired by the original papers. Please read the attack-specific README before using a method in a paper or comparison study.
+
+## 8. FaceSM objective selection
+
+FaceSM is the default for both the CLI and `run_attack`. Use `--objective vanilla` for the conventional objective, `--objective facesm` to select FaceSM explicitly, or `--objective both` to generate both outputs. Use base attack names such as `PGD,MI_FGSM,BSR`; the runner adds `_SM` output labels automatically. `--source-lambda` defaults to `0.20`; zero disables source separation while retaining mirror fusion.
+
+Vanilla keeps `<model>_adv_paths.csv`; FaceSM and combined runs write `<model>_facesm_adv_paths.csv` and `<model>_both_adv_paths.csv`. CSVs record the objective and source weight. Use separate output roots for different weights or reruns: the path CSV is rewritten on each run.
+
+```python
+adv = run_attack(
+    'MI_FGSM', model, source, target, 'impersonation_attack', (112, 112),
+    objective='facesm', source_lambda=0.20,
+)
+```
+
+Inputs are single-pair NHWC tensors scaled to `[-1, 1]`. Source and target references are mirror-fused; the source reference is fixed throughout optimization. Model weights are not trained. Each optimized embedding requires two model evaluations, so an unchanged iteration count does not imply equal compute cost.
+
+The CLI processes one pair at a time. IDAA is excluded because its implementation is missing; DYNAMIC_MORPH requires an explicit `--objective vanilla` (or `objective="vanilla"` in the API). Selecting an unsupported combination fails before model loading.
+
+See [FaceSM integration notes](facesm.md) for paper reproduction limits.

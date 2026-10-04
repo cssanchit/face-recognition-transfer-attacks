@@ -9,7 +9,7 @@ os.environ.setdefault('TF_CPP_MIN_LOG_LEVEL', '2')
 import numpy as np
 import tensorflow as tf
 from PIL import Image
-from deepface import DeepFace
+from core.facesm_objective import FaceSMModel, attack_loss_sm
 
 ATTACKER_MODELS = {
     'Facenet512': (160, 160),
@@ -39,7 +39,6 @@ ALL_ATTACKS = [
     'ATT_CNN_PATCH',
     'LI_BOOST_MI',
     'GRA',
-    'IDAA',
     'DYNAMIC_MORPH',
     'DPA_HMA',
     'DPA_VMI',
@@ -165,6 +164,15 @@ def attack_loss(cos, attack_type: str):
     return tf.reduce_mean(cos if str(attack_type).strip().lower() == 'impersonation_attack' else (1 - cos))
 
 
+def verification_loss(model, embedding, target_embedding, attack_type):
+    """Shared vanilla/FaceSM score to maximize, including transformed batches."""
+    cos_t = tf.reduce_sum(embedding * target_embedding, axis=1)
+    if isinstance(model, FaceSMModel):
+        cos_s = tf.reduce_sum(embedding * model.source_embedding, axis=1)
+        return attack_loss_sm(cos_t, cos_s, attack_type, model.source_lambda)
+    return attack_loss(cos_t, attack_type)
+
+
 def save_adv(img_uint8: np.ndarray, attack_name: str, src: str, tgt: str, attack_type: str, model_name: str, row_id: int, adv_root: str) -> str:
     out_dir = Path(adv_root) / model_name / attack_name
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -258,8 +266,7 @@ def pgd_attack(model, x, tgt_emb, attack_type, random_start=True):
         with tf.GradientTape() as tape:
             tape.watch(adv)
             emb = compute_embedding(model, adv)
-            cos = tf.reduce_sum(emb * tgt_emb, axis=1)
-            loss = attack_loss(cos, attack_type)
+            loss = verification_loss(model, emb, tgt_emb, attack_type)
         grad = tape.gradient(loss, adv)
         adv = adv + alpha * tf.sign(grad)
         adv = tf.clip_by_value(adv, x - EPSILON, x + EPSILON)
@@ -276,8 +283,7 @@ def mi_fgsm(model, x, tgt_emb, attack_type):
         with tf.GradientTape() as tape:
             tape.watch(adv)
             emb = compute_embedding(model, adv)
-            cos = tf.reduce_sum(emb * tgt_emb, axis=1)
-            loss = attack_loss(cos, attack_type)
+            loss = verification_loss(model, emb, tgt_emb, attack_type)
         grad = tape.gradient(loss, adv)
         grad = grad / (tf.reduce_mean(tf.abs(grad)) + 1e-8)
         g = DECAY * g + grad
@@ -308,8 +314,7 @@ def mig_attack(model, x, tgt_emb, attack_type, s_factor: int = 20):
             with tf.GradientTape() as tape:
                 tape.watch(x_step)
                 emb = compute_embedding(model, x_step)
-                cos = tf.reduce_sum(emb * tgt_emb, axis=1)
-                loss = attack_loss(cos, attack_type)
+                loss = verification_loss(model, emb, tgt_emb, attack_type)
             grad_sum += tape.gradient(loss, x_step)
 
         grad = grad_sum / tf.cast(s_factor, tf.float32)
@@ -336,8 +341,7 @@ def adamsi_fgm(model, x, tgt_emb, attack_type, beta1=0.9, eps_adapt=1e-8):
         with tf.GradientTape() as tape:
             tape.watch(adv)
             emb = compute_embedding(model, adv)
-            cos = tf.reduce_sum(emb * tgt_emb, axis=1)
-            loss = attack_loss(cos, attack_type)
+            loss = verification_loss(model, emb, tgt_emb, attack_type)
         grad = tape.gradient(loss, adv)
         grad_norm = grad / (tf.reduce_mean(tf.abs(grad)) + 1e-8)
 
@@ -367,8 +371,7 @@ def att_cnn_attack(model, x, tgt_emb, attack_type):
         with tf.GradientTape() as tape:
             tape.watch(adv)
             emb = compute_embedding(model, adv)
-            cos = tf.reduce_sum(emb * tgt_emb, axis=1)
-            loss = attack_loss(cos, attack_type)
+            loss = verification_loss(model, emb, tgt_emb, attack_type)
 
         grad = tape.gradient(loss, adv)
         grad_var = tf.math.reduce_variance(grad)
@@ -402,8 +405,7 @@ def att_cnn_patch_attack(model, x, tgt_emb, attack_type):
         with tf.GradientTape() as tape:
             tape.watch(adv)
             emb = compute_embedding(model, adv)
-            cos = tf.reduce_sum(emb * tgt_emb, axis=1)
-            loss = attack_loss(cos, attack_type)
+            loss = verification_loss(model, emb, tgt_emb, attack_type)
 
         grad = tape.gradient(loss, adv)
         grad = grad / (tf.reduce_mean(tf.abs(grad)) + 1e-8)
@@ -464,8 +466,8 @@ def compiled_liboost_mi_step(model, adv, tgt_emb, shifts, n_samples, chunk_size,
                 out = out[0]
             emb = tf.nn.l2_normalize(out, axis=1)
             tgt_rep = tf.repeat(tgt_emb, current_chunk_size, axis=0)
-            cos = tf.reduce_sum(emb * tgt_rep, axis=1)
-            loss_val = tf.reduce_mean(cos if is_impersonation else (1.0 - cos))
+            attack_type = "impersonation_attack" if is_impersonation else "dodging_attack"
+            loss_val = verification_loss(model, emb, tgt_rep, attack_type)
             loss = loss_val * (tf.cast(current_chunk_size, tf.float32) / tf.cast(n_samples, tf.float32))
         grad_sum += tape.gradient(loss, adv)
     return grad_sum
@@ -501,8 +503,7 @@ def ti_fgsm(model, x, tgt_emb, attack_type):
         with tf.GradientTape() as tape:
             tape.watch(adv)
             emb = compute_embedding(model, adv)
-            cos = tf.reduce_sum(emb * tgt_emb, axis=1)
-            loss = attack_loss(cos, attack_type)
+            loss = verification_loss(model, emb, tgt_emb, attack_type)
         grad = tape.gradient(loss, adv)
         grad = tf.nn.depthwise_conv2d(grad, kernel, [1, 1, 1, 1], 'SAME')
         adv = adv + alpha * tf.sign(grad)
@@ -524,8 +525,7 @@ def si_ni_fgsm(model, x, tgt_emb, attack_type):
             with tf.GradientTape() as tape:
                 tape.watch(nes)
                 emb = compute_embedding(model, nes * s)
-                cos = tf.reduce_sum(emb * tgt_emb, axis=1)
-                loss = attack_loss(cos, attack_type)
+                loss = verification_loss(model, emb, tgt_emb, attack_type)
             grad_sum += tape.gradient(loss, nes)
         grad = grad_sum / len(scales)
         grad = grad / (tf.reduce_mean(tf.abs(grad)) + 1e-8)
@@ -553,8 +553,7 @@ def mi_admix_di_ti(model, x, tgt_emb, attack_type, pool_imgs, input_size):
             batch = input_diversity(mixed, input_size)
             emb = compute_embedding(model, batch)
             tgt_rep = tf.repeat(tgt_emb, 3, axis=0)
-            cos = tf.reduce_sum(emb * tgt_rep, axis=1)
-            loss = attack_loss(cos, attack_type)
+            loss = verification_loss(model, emb, tgt_rep, attack_type)
         grad = tape.gradient(loss, adv)
         grad = tf.nn.depthwise_conv2d(grad, kernel, [1, 1, 1, 1], 'SAME')
         grad = grad / (tf.reduce_mean(tf.abs(grad)) + 1e-8)
@@ -591,8 +590,7 @@ def bpa_cnn(model, x, tgt_emb, attack_type):
         with tf.GradientTape() as tape:
             tape.watch(adv)
             emb = compute_embedding(model, adv)
-            cos = tf.reduce_sum(emb * tgt_emb, axis=1)
-            loss = attack_loss(cos, attack_type)
+            loss = verification_loss(model, emb, tgt_emb, attack_type)
 
         grad = tape.gradient(loss, adv)
 
@@ -685,8 +683,7 @@ def bsr(model, x, tgt_emb, attack_type, num_copies: int = 20, num_block: int = 2
             x_batch = tf.concat(copies, axis=0)
             tgt_rep = tf.repeat(tgt_emb, num_copies, axis=0)
             emb = compute_embedding(model, x_batch)
-            cos = tf.reduce_sum(emb * tgt_rep, axis=1)
-            loss = attack_loss(cos, attack_type)
+            loss = verification_loss(model, emb, tgt_rep, attack_type)
         grad = tape.gradient(loss, adv)
         grad = grad / (tf.reduce_mean(tf.abs(grad)) + 1e-8)
         g = DECAY * g + grad
@@ -806,8 +803,7 @@ def _decowa_update_noise_map(model, adv, tgt_emb, attack_type, height, width):
         tape.watch(noise_map)
         warped = _decowa_warp(adv, noise_map, height, width)
         emb = compute_embedding(model, warped)
-        cos = tf.reduce_sum(emb * tgt_emb, axis=1)
-        loss = attack_loss(cos, attack_type)
+        loss = verification_loss(model, emb, tgt_emb, attack_type)
     grad = tape.gradient(loss, noise_map)
     if grad is None:
         return noise_map
@@ -833,8 +829,7 @@ def decowa(model, x, tgt_emb, attack_type, input_size):
                 tape.watch(adv)
                 warped = _decowa_warp(adv, noise_map, height, width)
                 emb = compute_embedding(model, warped)
-                cos = tf.reduce_sum(emb * tgt_emb, axis=1)
-                loss = attack_loss(cos, attack_type)
+                loss = verification_loss(model, emb, tgt_emb, attack_type)
             grad = tape.gradient(loss, adv)
             grads += tf.where(tf.math.is_finite(grad), grad, tf.zeros_like(grad))
         grads = grads / DECOWA_NUM_WARPING
@@ -985,8 +980,7 @@ def sia_attack(model, x, tgt_emb, attack_type, num_copies=20, grid=4, eps=EPSILO
             with tf.GradientTape() as tape:
                 tape.watch(transformed)
                 emb = compute_embedding(model, transformed)
-                cos = tf.reduce_sum(emb * tgt_emb, axis=1)
-                loss = attack_loss(cos, attack_type)
+                loss = verification_loss(model, emb, tgt_emb, attack_type)
             grad = tape.gradient(loss, transformed)
             grad_accum += grad / num_copies
 
@@ -1017,8 +1011,7 @@ def sia_mi_ti(model, x, tgt_emb, attack_type, num_copies=5, num_block=3):
             batch = tf.concat(copies, axis=0)
             emb = compute_embedding(model, batch)
             tgt_rep = tf.repeat(tgt_emb, num_copies, axis=0)
-            cos = tf.reduce_sum(emb * tgt_rep, axis=1)
-            loss = attack_loss(cos, attack_type)
+            loss = verification_loss(model, emb, tgt_rep, attack_type)
         grad = tape.gradient(loss, adv)
         grad = tf.nn.depthwise_conv2d(grad, kernel, [1, 1, 1, 1], 'SAME')
         grad = grad / (tf.reduce_mean(tf.abs(grad)) + 1e-8)
@@ -1160,8 +1153,7 @@ def ops_attack(model, x, tgt_emb, attack_type, input_size):
             batch = tf.concat(samples, axis=0)
             tgt_rep = tf.repeat(tgt_emb, tf.shape(batch)[0], axis=0)
             emb = compute_embedding(model, batch)
-            cos = tf.reduce_sum(emb * tgt_rep, axis=1)
-            loss = attack_loss(cos, attack_type)
+            loss = verification_loss(model, emb, tgt_rep, attack_type)
         grad = tape.gradient(loss, adv)
         if grad is None:
             grad = tf.zeros_like(adv)
@@ -1228,16 +1220,14 @@ def _dpa_hma_optimize(model, x, tgt_emb, attack_type, num_copies: int, num_iter:
         with tf.GradientTape() as hard_tape:
             hard_tape.watch(adv)
             hard_emb = compute_embedding(model, adv)
-            hard_cos = tf.reduce_sum(hard_emb * tgt_emb, axis=1)
-            hard_loss = attack_loss(hard_cos, attack_type)
+            hard_loss = verification_loss(model, hard_emb, tgt_emb, attack_type)
         hard_grad = hard_tape.gradient(hard_loss, adv)
 
         with tf.GradientTape() as tape:
             batch = _dpa_hma_transform_batch(adv, hard_grad, num_copies)
             tgt_rep = tf.repeat(tgt_emb, num_copies, axis=0)
             emb = compute_embedding(model, batch)
-            cos = tf.reduce_sum(emb * tgt_rep, axis=1)
-            loss = attack_loss(cos, attack_type)
+            loss = verification_loss(model, emb, tgt_rep, attack_type)
         grad = tape.gradient(loss, adv)
         grad = tf.where(tf.math.is_finite(grad), grad, tf.zeros_like(grad))
         grad = grad / (tf.reduce_mean(tf.abs(grad)) + 1e-8)
@@ -1269,8 +1259,7 @@ def gra_attack(model, x, tgt_emb, attack_type):
         with tf.GradientTape() as tape:
             tape.watch(adv)
             emb = compute_embedding(model, adv)
-            cos = tf.reduce_sum(emb * tgt_emb, axis=1)
-            loss = attack_loss(cos, attack_type)
+            loss = verification_loss(model, emb, tgt_emb, attack_type)
         current_grad = tape.gradient(loss, adv)
 
         neighbor_grad_sum = tf.zeros_like(x)
@@ -1282,8 +1271,7 @@ def gra_attack(model, x, tgt_emb, attack_type):
             with tf.GradientTape() as tape_n:
                 tape_n.watch(x_neighbor)
                 emb_n = compute_embedding(model, x_neighbor)
-                cos_n = tf.reduce_sum(emb_n * tgt_emb, axis=1)
-                loss_n = attack_loss(cos_n, attack_type)
+                loss_n = verification_loss(model, emb_n, tgt_emb, attack_type)
             neighbor_grad_sum += tape_n.gradient(loss_n, x_neighbor)
         avg_neighbor_grad = neighbor_grad_sum / float(GRA_NUM_NEIGHBOR)
 
@@ -1332,8 +1320,7 @@ def pgn_attack(model, x, tgt_emb, attack_type):
             with tf.GradientTape() as tape1:
                 tape1.watch(x_near)
                 emb1 = compute_embedding(model, x_near)
-                cos1 = tf.reduce_sum(emb1 * tgt_emb, axis=1)
-                loss1 = attack_loss(cos1, attack_type)
+                loss1 = verification_loss(model, emb1, tgt_emb, attack_type)
             g_1 = tape1.gradient(loss1, x_near)
 
             norm_g1 = tf.reduce_mean(tf.abs(g_1), axis=[1, 2, 3], keepdims=True) + 1e-8
@@ -1342,8 +1329,7 @@ def pgn_attack(model, x, tgt_emb, attack_type):
             with tf.GradientTape() as tape2:
                 tape2.watch(x_next)
                 emb2 = compute_embedding(model, x_next)
-                cos2 = tf.reduce_sum(emb2 * tgt_emb, axis=1)
-                loss2 = attack_loss(cos2, attack_type)
+                loss2 = verification_loss(model, emb2, tgt_emb, attack_type)
             g_2 = tape2.gradient(loss2, x_next)
 
             averaged_gradient += (1.0 - PGN_GAMMA) * g_1 + PGN_GAMMA * g_2
@@ -1388,8 +1374,7 @@ def dpa_vmi(model, x, tgt_emb, attack_type, num_copies=8, beta=1.5, num_iter=NUM
         with tf.GradientTape() as hard_tape:
             hard_tape.watch(nes)
             hard_emb = compute_embedding(model, nes)
-            hard_cos = tf.reduce_sum(hard_emb * tgt_emb, axis=1)
-            hard_loss = attack_loss(hard_cos, attack_type)
+            hard_loss = verification_loss(model, hard_emb, tgt_emb, attack_type)
         hard_grad = hard_tape.gradient(hard_loss, nes)
         hard_grad = tf.zeros_like(nes) if hard_grad is None else tf.where(
             tf.math.is_finite(hard_grad), hard_grad, tf.zeros_like(hard_grad)
@@ -1400,8 +1385,7 @@ def dpa_vmi(model, x, tgt_emb, attack_type, num_copies=8, beta=1.5, num_iter=NUM
             batch = _dpa_hma_transform_batch(nes, hard_grad, num_copies)
             tgt_rep = tf.repeat(tgt_emb, num_copies, axis=0)
             emb = compute_embedding(model, batch)
-            cos = tf.reduce_sum(emb * tgt_rep, axis=1)
-            loss = attack_loss(cos, attack_type)
+            loss = verification_loss(model, emb, tgt_rep, attack_type)
         cur_grad = tape.gradient(loss, nes)
         cur_grad = tf.zeros_like(nes) if cur_grad is None else tf.where(
             tf.math.is_finite(cur_grad), cur_grad, tf.zeros_like(cur_grad)
@@ -1416,8 +1400,7 @@ def dpa_vmi(model, x, tgt_emb, attack_type, num_copies=8, beta=1.5, num_iter=NUM
                 batch_n = _dpa_hma_transform_batch(nes_neighbor, hard_grad, num_copies=4)
                 tgt_rep_n = tf.repeat(tgt_emb, 4, axis=0)
                 emb_n = compute_embedding(model, batch_n)
-                cos_n = tf.reduce_sum(emb_n * tgt_rep_n, axis=1)
-                loss_n = attack_loss(cos_n, attack_type)
+                loss_n = verification_loss(model, emb_n, tgt_rep_n, attack_type)
             g_n = tape_n.gradient(loss_n, nes_neighbor)
             g_n = tf.zeros_like(nes) if g_n is None else g_n
             neighbor_grad_sum += g_n
@@ -1443,6 +1426,7 @@ def dpa_vmi(model, x, tgt_emb, attack_type, num_copies=8, beta=1.5, num_iter=NUM
 
 def dynamic_morph_mi_fgsm(model, src, tgt, attack_type, input_size):
     """Assignment 4: D-FMA (Pre-aligned Semantic Mixing)"""
+    import cv2
     h, w = input_size
     mask = np.zeros((h, w, 3), dtype=np.float32)
     
@@ -1464,8 +1448,7 @@ def dynamic_morph_mi_fgsm(model, src, tgt, attack_type, input_size):
         with tf.GradientTape() as tape:
             tape.watch(adv)
             emb = compute_embedding(model, adv)
-            cos = tf.reduce_sum(emb * tgt_emb, axis=1)
-            loss = attack_loss(cos, attack_type)
+            loss = verification_loss(model, emb, tgt_emb, attack_type)
             
         grad = tape.gradient(loss, adv)
         grad = grad / (tf.reduce_mean(tf.abs(grad)) + 1e-8)
@@ -1510,8 +1493,7 @@ def vmi_fgsm(model, x, tgt_emb, attack_type, beta=1.5, n=20):
         with tf.GradientTape() as tape:
             tape.watch(adv)
             emb = compute_embedding(model, adv)
-            cos = tf.reduce_sum(emb * tgt_emb, axis=1)
-            loss = attack_loss(cos, attack_type)
+            loss = verification_loss(model, emb, tgt_emb, attack_type)
         grad = tape.gradient(loss, adv)
 
         grad_var = tf.zeros_like(grad)
@@ -1522,8 +1504,7 @@ def vmi_fgsm(model, x, tgt_emb, attack_type, beta=1.5, n=20):
             with tf.GradientTape() as neighbor_tape:
                 neighbor_tape.watch(neighbor)
                 emb_neighbor = compute_embedding(model, neighbor)
-                cos_neighbor = tf.reduce_sum(emb_neighbor * tgt_emb, axis=1)
-                neighbor_loss = attack_loss(cos_neighbor, attack_type)
+                neighbor_loss = verification_loss(model, emb_neighbor, tgt_emb, attack_type)
             neighbor_grad = neighbor_tape.gradient(neighbor_loss, neighbor)
             grad_var += neighbor_grad - grad
 
@@ -1556,8 +1537,7 @@ def mef_attack(model, x, tgt_emb, attack_type):
             with tf.GradientTape() as tape:
                 tape.watch(img_min)
                 emb = compute_embedding(model, img_min)
-                cos = tf.reduce_sum(emb * tgt_emb, axis=1)
-                loss = attack_loss(cos, attack_type)
+                loss = verification_loss(model, emb, tgt_emb, attack_type)
             grad = tape.gradient(loss, img_min)
             grad = tf.where(tf.math.is_finite(grad), grad, tf.zeros_like(grad))
             grad_list.append(grad)
@@ -1580,10 +1560,29 @@ def mef_attack(model, x, tgt_emb, attack_type):
 
 
 def build_attacker(model_name: str):
+    from deepface import DeepFace
+
     return DeepFace.build_model(model_name).model
 
 
-def run_attack(attack_name: str, model, src, tgt, attack_type: str, input_size):
+FACESM_ATTACKS = [name for name in ALL_ATTACKS if name != "DYNAMIC_MORPH"]
+
+def run_attack(attack_name: str, model, src, tgt, attack_type: str, input_size,
+               *, objective="facesm", source_lambda=0.20):
+    """Generate one pair; select vanilla or FaceSM without changing attack dynamics."""
+    if objective not in ("vanilla", "facesm"):
+        raise ValueError(f"Unsupported objective: {objective}")
+    if attack_name not in ALL_ATTACKS:
+        raise ValueError(f"Unsupported attack: {attack_name}")
+    attack_type = str(attack_type).strip().lower()
+    if attack_type not in ("impersonation_attack", "dodging_attack"):
+        raise ValueError(f"Unsupported attack type: {attack_type}")
+    if objective == "facesm":
+        if attack_name not in FACESM_ATTACKS:
+            raise ValueError(f"FaceSM is not supported for {attack_name}")
+        tf.debugging.assert_equal(tf.shape(src)[0], 1, message="Use one source pair at a time")
+        tf.debugging.assert_equal(tf.shape(tgt)[0], 1, message="Use one target pair at a time")
+        model = FaceSMModel(model, src, source_lambda)
     tgt_emb = compute_embedding(model, tgt)
     if attack_name == 'PGD':
         return pgd_attack(model, src, tgt_emb, attack_type)
@@ -1622,8 +1621,6 @@ def run_attack(attack_name: str, model, src, tgt, attack_type: str, input_size):
         return gra_attack(model, src, tgt_emb, attack_type)
     if attack_name == 'PGN':
         return pgn_attack(model, src, tgt_emb, attack_type)
-    if attack_name == 'IDAA':
-        return idaa(model, src, tgt_emb, attack_type, input_size)
     if attack_name == 'DPA_HMA':
         return dpa_hma(model, src, tgt_emb, attack_type)
     if attack_name == 'DPA_VMI':
